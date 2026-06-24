@@ -65,10 +65,14 @@ popup_window.py  — חלון תשובה (tkinter, always-on-top)
 typer.py         — הקלדה אוטומטית לתוך עורך הקוד
 config.py        — טעינת settings.json
 settings.json    — API key + הגדרות
-install.bat      — התקנת dependencies (פעם אחת)
-start.bat        — הרצת הסוכן
-TAGS_GUIDE.txt   — מדריך שימוש בתגיות
+install.bat         — התקנת dependencies (פעם אחת)
+start.bat           — הרצת הסוכן
+.gitignore          — מונע העלאת settings.json ותמונות ל-GitHub
+TAGS_GUIDE.txt      — מדריך שימוש בתגיות
 PROJECT_SUMMARY.txt — קובץ זה
+
+חשוב: settings.json לא עולה ל-GitHub (מכיל API key).
+כל מחשב של תלמידה צריך settings.json משלה עם ה-API key.
 
 =====================================
  הגדרות (settings.json)
@@ -101,6 +105,8 @@ type_speed     — מהירות הקלדה אוטומטית (0.015 שניות ל
 
 - אל תפתחי קבצי טקסט (TAGS_GUIDE.txt וכד') בזמן הבחינה —
   הסוכן עלול לקרוא את ה-@@ שבהם ולהתבלבל
+- אל תעלי את settings.json ל-GitHub — הוא מכיל API key פרטי
+  (מוגן ע"י .gitignore)
 - אם תגית לא עובדת: לוודא שיש @@ בסוף ולחכות 2 שניות
 - אם SEB פתוח במצב kiosk מלא וחלון לא מופיע:
   לשנות response_mode ל-"type" ב-settings.json

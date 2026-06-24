@@ -1,8 +1,8 @@
 {
-  "api_key": "",
+  "api_key": "API שלכן",
   "poll_interval": 1.0,
-  "response_mode": "auto",
-  "model": "gemini-2.0-flash-lite",
+  "response_mode": "type",
+  "model": "mistral-small-latest",
   "type_speed": 0.015,
   "language": "he"
 }

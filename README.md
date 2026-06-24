@@ -6,14 +6,15 @@ An AI assistant that runs silently in the background and helps students communic
 
 The agent reads text from the active window using the **Windows UIAutomation API** (OS-level, not blocked by SEB). Students write special tags inside their code editor, and the agent detects them, calls the AI, and displays the response in a floating popup window.
 
+```
 Student types @@ASK: why does my loop run forever?@@
-↓
+        ↓
 Agent reads via UIAutomation (no screenshot, no OCR)
-↓
+        ↓
 Gemini AI responds
-↓
+        ↓
 Floating popup appears with the answer
-
+```
 
 ## Features
 
@@ -55,11 +56,15 @@ Floating popup appears with the answer
   "api_key": "YOUR_GEMINI_API_KEY",
   "model": "gemini-2.0-flash-lite"
 }
-Run start.bat before opening SEB
-Usage
-Write any tag inside your code editor (tested with Ultracode / Monaco editor), wait 2 seconds, and the response appears in a floating window.
+```
+4. Run `start.bat` before opening SEB
 
-Example:
+## Usage
+
+Write any tag inside your code editor (tested with **Ultracode** / Monaco editor), wait 2 seconds, and the response appears in a floating window.
+
+**Example:**
+```cpp
 int findMax(int arr[], int n) {
     int max = 0;
     for(int i = 0; i < n; i++)
@@ -68,9 +73,13 @@ int findMax(int arr[], int n) {
 }
 
 @@ASKALL: why doesn't this work when all numbers are negative?@@
-Note: Do not open the TAGS_GUIDE.txt file while the agent is running — it contains @@ patterns that may confuse the detector.
+```
 
-Architecture
+> **Note:** Do not open the `TAGS_GUIDE.txt` file while the agent is running — it contains `@@` patterns that may confuse the detector.
+
+## Architecture
+
+```
 main.py          — Main loop, debounce, tag dispatch
 reader.py        — UIAutomation text extraction (fast, no OCR)
 detector.py      — Tag parsing, hash-based deduplication
@@ -78,9 +87,11 @@ claude_client.py — Gemini API calls, retry logic, token efficiency
 popup_window.py  — Floating tkinter response window
 typer.py         — Keyboard simulation for typing into editor
 config.py        — Settings loader
-Platform
-Developed and tested on:
+```
 
-Safe Exam Browser (SEB)
-Ultracode — Monaco-based online judge
-Windows 11
+## Platform
+
+Developed and tested on:
+- Safe Exam Browser (SEB)
+- [Ultracode](https://ultracode.co.il) — Monaco-based online judge
+- Windows 11

@@ -6,6 +6,8 @@ Only calls the AI when @@TAG@@ patterns are detected.
 
 import sys
 import json
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import time
 import threading
 import re
@@ -34,7 +36,7 @@ if not Settings.get("api_key") or "YOUR_" in Settings["api_key"]:
     sys.exit(1)
 
 from reader        import read_focused_text
-from detector      import peek_tag, is_new, mark_processed
+from detector      import peek_tag, is_new, mark_processed, reset as reset_hash
 from claude_client import ask_ai
 import popup_window
 import typer
@@ -108,6 +110,7 @@ def _handle(tag_type: str, content: str, full_text: str):
             print(f"[Agent] תשובה התקבלה ({len(response)} תווים)")
             popup_window.show("SOLVE", response)
         except Exception as e:
+            reset_hash()
             popup_window.show("ERROR", f"שגיאה:\n{e}")
         return
 
@@ -164,7 +167,12 @@ def _handle(tag_type: str, content: str, full_text: str):
         response = ask_ai(tag_type, content, context)
         print(f"[Agent] תשובה התקבלה ({len(response)} תווים)")
     except Exception as e:
-        popup_window.show("ERROR", f"שגיאה בתקשורת עם AI:\n\n{e}")
+        err_str = str(e)
+        if "<html" in err_str.lower() or "<!doctype" in err_str.lower():
+            err_str = "ה-API חסום ע\"י פילטר רשת (NetFree?)\nנסי API אחר או בדקי הגדרות NetFree."
+        elif len(err_str) > 300:
+            err_str = err_str[:300] + "..."
+        popup_window.show("ERROR", f"שגיאה בתקשורת עם AI:\n\n{err_str}")
         print(f"[Agent] AI error: {e}")
         return
 
@@ -197,10 +205,11 @@ def main():
     print("ממתין לתגיות... (Ctrl+C להפסקה)")
     print()
 
-    _last_read_preview = None
-    _pending_key   = None   # "TAG:content" currently pending
-    _pending_since = None   # when this key was first seen
-    _pending_data  = None   # (tag_type, content, text) to pass to handler
+    _last_read_preview  = None
+    _pending_key        = None   # "TAG:content" currently pending
+    _pending_since      = None   # when this key was first seen
+    _pending_data       = None   # (tag_type, content, text) to pass to handler
+    _last_processed_key = None   # track last fired tag to detect when it's removed
 
     DEBOUNCE_WITH_CONTENT = 1.5   # wait for user to finish typing
     DEBOUNCE_BARE         = 0.5   # bare tags (SCREENSHOT, COPYALL etc.) — fire faster
@@ -215,8 +224,20 @@ def main():
                 print(f"[reader] {preview}")
                 _last_read_preview = preview
 
+            # If we processed a tag before, check if it's still present.
+            # Only reset hash when the tag is gone from the active editor
+            # (not when user just switched to another window).
             if text and "@@" in text:
                 result = peek_tag(text)
+
+                # If we processed a tag, reset hash only when a DIFFERENT complete
+                # tag appears. Ignore momentary incomplete tags (closing @@ missing).
+                if _last_processed_key and result:
+                    current_key = f"{result[0]}:{result[1]}"
+                    if current_key != _last_processed_key:
+                        reset_hash()
+                        _last_processed_key = None
+
                 if result:
                     tag_type, content = result
                     key = f"{tag_type}:{content}"
@@ -238,8 +259,9 @@ def main():
                             # Stable long enough — fire!
                             print(f"[debounce] יורה! {key[:40]}")
                             mark_processed(tag_type, content)
-                            _pending_key   = None
-                            _pending_since = None
+                            _last_processed_key = key
+                            _pending_key        = None
+                            _pending_since      = None
                             threading.Thread(
                                 target=_handle,
                                 args=_pending_data,

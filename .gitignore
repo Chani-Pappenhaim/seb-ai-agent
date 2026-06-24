@@ -1,0 +1,7 @@
+settings.json
+*.JPG
+*.jpg
+*.png
+__pycache__/
+*.pyc
+screenshot_*.png

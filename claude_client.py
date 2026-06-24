@@ -1,24 +1,50 @@
 """
-AI calls via Google Gemini (free tier) — new google-genai package (REST, not gRPC).
-Fixes SSL certificate errors that occurred with the old google-generativeai package.
+AI calls — supports Mistral, Groq, and Google Gemini.
+Provider is selected automatically based on the api_key format or 'provider' field in settings.json.
+  Groq key    starts with  gsk_
+  Gemini key  starts with  AIzaSy or AQ.
+  Mistral key — everything else (set provider: "mistral" to be explicit)
 """
 
 import time
-from google import genai
-from google.genai import types
 from config import Settings
 
-_client: genai.Client | None = None
+_groq_client    = None
+_gemini_client  = None
+_mistral_client = None
 
 
-def _get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        _client = genai.Client(api_key=Settings["api_key"])
-    return _client
+def _provider() -> str:
+    explicit = Settings.get("provider", "").lower()
+    if explicit in ("groq", "gemini", "mistral"):
+        return explicit
+    key = Settings.get("api_key", "")
+    if key.startswith("gsk_"):
+        return "groq"
+    if key.startswith(("AIzaSy", "AQ.")):
+        return "gemini"
+    return "mistral"
 
 
-# ── System prompts — minimal to save tokens ───────────────────────────────────
+def _get_groq():
+    global _groq_client
+    if _groq_client is None:
+        from groq import Groq
+        _groq_client = Groq(api_key=Settings["api_key"])
+    return _groq_client
+
+
+
+
+def _get_gemini():
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        _gemini_client = genai.Client(api_key=Settings["api_key"])
+    return _gemini_client
+
+
+# ── System prompts ────────────────────────────────────────────────────────────
 
 _SYSTEM: dict[str, str] = {
     "ASKALL": (
@@ -55,25 +81,43 @@ _MAX_TOKENS: dict[str, int] = {
 }
 
 
-def ask_ai(tag_type: str, content: str, context: str = "") -> str:
-    """Call Gemini and return response text."""
-    system = _SYSTEM.get(tag_type, _SYSTEM["ASK"])
-    max_tok = _MAX_TOKENS.get(tag_type, 300)
-
-    if tag_type == "FIX" and context:
-        if len(context) > 1500:
-            context = context[-1500:]
-        user_msg = f"Code:\n{context}\n\nFix instruction: {content}"
-    else:
-        user_msg = content
-
-    if not user_msg.strip():
-        raise ValueError("empty request")
+def _call_groq(tag_type: str, user_msg: str) -> str:
+    client   = _get_groq()
+    system   = _SYSTEM.get(tag_type, _SYSTEM["ASK"])
+    max_tok  = _MAX_TOKENS.get(tag_type, 300)
+    model    = Settings.get("model", "llama-3.3-70b-versatile")
 
     for attempt in range(3):
         try:
-            response = _get_client().models.generate_content(
-                model=Settings.get("model", "gemini-2.0-flash-lite"),
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system",    "content": system},
+                    {"role": "user",      "content": user_msg},
+                ],
+                max_tokens=max_tok,
+                temperature=0.3,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                print(f"[AI] Rate limit — ממתין 15 שניות... (ניסיון {attempt+1}/3)")
+                time.sleep(15)
+            else:
+                raise
+
+
+def _call_gemini(tag_type: str, user_msg: str) -> str:
+    from google.genai import types
+    client  = _get_gemini()
+    system  = _SYSTEM.get(tag_type, _SYSTEM["ASK"])
+    max_tok = _MAX_TOKENS.get(tag_type, 300)
+    model   = Settings.get("model", "gemini-2.0-flash")
+
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=model,
                 contents=user_msg,
                 config=types.GenerateContentConfig(
                     system_instruction=system,
@@ -88,3 +132,56 @@ def ask_ai(tag_type: str, content: str, context: str = "") -> str:
                 time.sleep(15)
             else:
                 raise
+
+
+def _call_mistral(tag_type: str, user_msg: str) -> str:
+    import requests
+    system  = _SYSTEM.get(tag_type, _SYSTEM["ASK"])
+    max_tok = _MAX_TOKENS.get(tag_type, 300)
+    model   = Settings.get("model", "mistral-small-latest")
+
+    for attempt in range(3):
+        try:
+            resp = requests.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {Settings['api_key']}",
+                         "Content-Type": "application/json"},
+                json={"model": model,
+                      "messages": [{"role": "system", "content": system},
+                                   {"role": "user",   "content": user_msg}],
+                      "max_tokens": max_tok,
+                      "temperature": 0.3},
+                timeout=30,
+            )
+            if resp.status_code == 429 and attempt < 2:
+                print(f"[AI] Rate limit — ממתין 15 שניות... (ניסיון {attempt+1}/3)")
+                time.sleep(15)
+                continue
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            if attempt < 2 and "429" in str(e):
+                print(f"[AI] Rate limit — ממתין 15 שניות... (ניסיון {attempt+1}/3)")
+                time.sleep(15)
+            else:
+                raise
+
+
+def ask_ai(tag_type: str, content: str, context: str = "") -> str:
+    if tag_type == "FIX" and context:
+        if len(context) > 1500:
+            context = context[-1500:]
+        user_msg = f"Code:\n{context}\n\nFix instruction: {content}"
+    else:
+        user_msg = content
+
+    if not user_msg.strip():
+        raise ValueError("empty request")
+
+    provider = _provider()
+    if provider == "groq":
+        return _call_groq(tag_type, user_msg)
+    elif provider == "mistral":
+        return _call_mistral(tag_type, user_msg)
+    else:
+        return _call_gemini(tag_type, user_msg)
