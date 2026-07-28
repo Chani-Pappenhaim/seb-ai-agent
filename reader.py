@@ -4,9 +4,14 @@ Optimization: first do a cheap focused-control check.
 Only search the full tree if @@ is found.
 """
 
-_IGNORE_TITLES = ("seb agent", "cmd.exe", "command prompt", "powershell",
-                  "windows terminal", "visual studio code", "notepad++",
-                  "notepad", "wordpad", ".txt", ".py", "tags_guide", "project_summary")
+from typing import Optional
+from constants import MAX_TREE_SEARCH_DEPTH, MAX_PARENT_WALK_UP
+
+_IGNORE_TITLES = (
+    "seb agent", "seb bot", "cmd.exe", "command prompt", "powershell",
+    "windows terminal", "visual studio code", "notepad++",
+    "notepad", "wordpad", ".txt", ".py", "tags_guide", "project_summary",
+)
 
 
 def _should_ignore(title: str) -> bool:
@@ -14,7 +19,7 @@ def _should_ignore(title: str) -> bool:
     return any(x in t for x in _IGNORE_TITLES)
 
 
-def _extract(ctrl) -> str | None:
+def _extract(ctrl) -> Optional[str]:
     for getter in [
         lambda c: c.GetValuePattern().Value,
         lambda c: c.GetTextPattern().DocumentRange.GetText(-1),
@@ -29,8 +34,8 @@ def _extract(ctrl) -> str | None:
     return None
 
 
-def _search_tree(ctrl, depth: int) -> str | None:
-    if depth > 7:
+def _search_tree(ctrl, depth: int) -> Optional[str]:
+    if depth > MAX_TREE_SEARCH_DEPTH:
         return None
     try:
         v = _extract(ctrl)
@@ -45,16 +50,20 @@ def _search_tree(ctrl, depth: int) -> str | None:
     return None
 
 
-def read_focused_text() -> str | None:
+def read_focused_text() -> Optional[str]:
     """
     1. Quick check: read focused control only.
-    2. If @@ found → return it.
-    3. If not → search full foreground window tree.
-    4. Ignore our own terminal window.
+    2. If @@ found -> return it.
+    3. If not -> search full foreground window tree.
+    4. Ignore our own terminal window and known non-editor windows.
     """
     try:
         import uiautomation as auto
+    except ImportError:
+        print("[reader] uiautomation not installed. Run: pip install uiautomation")
+        return None
 
+    try:
         fg = auto.GetForegroundControl()
         if fg and _should_ignore(fg.Name):
             return None
@@ -68,7 +77,7 @@ def read_focused_text() -> str | None:
 
             # Walk up parents (Monaco editor wraps text in divs)
             parent = ctrl.GetParentControl()
-            for _ in range(5):
+            for _ in range(MAX_PARENT_WALK_UP):
                 if parent is None:
                     break
                 v = _extract(parent)

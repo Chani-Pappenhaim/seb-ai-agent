@@ -1,10 +1,14 @@
 """
 Type text directly into the focused window via keyboard simulation.
 Used as fallback when popup windows are blocked by SEB.
+
+Note: named keyboard_input.py (not typer.py) to avoid shadowing
+the third-party 'typer' CLI framework package.
 """
 
 import time
 from config import Settings
+from constants import KEY_PRESS_DELAY, KEY_PRESS_DELAY_SHORT
 
 
 def type_text(text: str):
@@ -16,15 +20,19 @@ def type_text(text: str):
         import keyboard
         keyboard.write(text, delay=delay)
         return
-    except Exception:
+    except ImportError:
         pass
+    except Exception as e:
+        print(f"[keyboard_input] keyboard library failed: {e}")
 
     # Fallback: pyautogui (ASCII only, may drop unicode)
     try:
         import pyautogui
         pyautogui.write(text, interval=delay)
+    except ImportError:
+        print("[keyboard_input] Neither 'keyboard' nor 'pyautogui' installed.")
     except Exception as e:
-        print(f"[typer] Could not type text: {e}")
+        print(f"[keyboard_input] Could not type text: {e}")
 
 
 def append_below_tag(response: str):
@@ -36,11 +44,13 @@ def append_below_tag(response: str):
     try:
         import keyboard
         keyboard.press_and_release("end")
-        time.sleep(0.15)
+        time.sleep(KEY_PRESS_DELAY)
         keyboard.press_and_release("enter")
-        time.sleep(0.1)
+        time.sleep(KEY_PRESS_DELAY_SHORT)
         keyboard.press_and_release("enter")
-        time.sleep(0.1)
+        time.sleep(KEY_PRESS_DELAY_SHORT)
         type_text(response)
+    except ImportError:
+        print("[keyboard_input] 'keyboard' library not installed — cannot append text.")
     except Exception as e:
-        print(f"[typer] append_below_tag error: {e}")
+        print(f"[keyboard_input] append_below_tag error: {e}")

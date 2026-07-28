@@ -1,8 +1,0 @@
-{
-  "api_key": "API שלכן",
-  "poll_interval": 1.0,
-  "response_mode": "type",
-  "model": "mistral-small-latest",
-  "type_speed": 0.015,
-  "language": "he"
-}

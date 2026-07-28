@@ -8,11 +8,14 @@ import threading
 import time
 import tkinter as tk
 from tkinter import scrolledtext
+from typing import Optional
 
-import typer
+import keyboard_input
+from clipboard_utils import copy_to_clipboard
+from constants import POPUP_GEOMETRY, TYPE_BUTTON_COUNTDOWN_SECONDS, FOCUS_REGAIN_DELAY
 
 _lock = threading.Lock()
-_active_root: tk.Tk | None = None
+_active_root: Optional[tk.Tk] = None
 
 TAG_COLORS = {
     "ASK":   "#89dceb",  # light blue
@@ -27,16 +30,18 @@ SURFACE = "#313244"
 FG      = "#cdd6f4"
 MUTED   = "#6c7086"
 
+TYPE_ELIGIBLE_TAGS = ("SOLVE", "FIX")
+
 
 def _build_window(tag_type: str, content: str) -> tk.Tk:
     root = tk.Tk()
-    root.title(f"סוכן AI · {tag_type}")
+    root.title(f"SEB Bot · {tag_type}")
     root.configure(bg=BG)
     root.attributes("-topmost", True)
-    root.geometry("480x320+40+40")
+    root.geometry(POPUP_GEOMETRY)
     root.resizable(True, True)
 
-    accent = TAG_COLORS.get(tag_type, "#cdd6f4")
+    accent = TAG_COLORS.get(tag_type, FG)
 
     # ── Header ───────────────────────────────────────────────────────────────
     hdr = tk.Frame(root, bg=SURFACE, pady=6)
@@ -62,22 +67,20 @@ def _build_window(tag_type: str, content: str) -> tk.Tk:
     btn_frame.pack(fill="x", padx=6, pady=(0, 6))
 
     def copy_clip():
-        try:
-            import pyperclip
-            pyperclip.copy(content)
-        except Exception:
-            root.clipboard_clear()
-            root.clipboard_append(content)
+        copy_to_clipboard(content)
 
     def make_type_btn():
-        """Button that counts down 3s then types the content."""
-        btn = tk.Button(btn_frame, text="⌨️  כתוב בעורך (3...)",
-                        bg=SURFACE, fg=accent, relief="flat", padx=10,
-                        font=("Consolas", 9))
+        """Button that counts down then types the content into the editor."""
+        btn = tk.Button(
+            btn_frame,
+            text=f"⌨️  כתוב בעורך ({TYPE_BUTTON_COUNTDOWN_SECONDS}...)",
+            bg=SURFACE, fg=accent, relief="flat", padx=10,
+            font=("Consolas", 9),
+        )
         btn.pack(side="left", padx=3)
 
         def countdown():
-            for i in (2, 1):
+            for i in range(TYPE_BUTTON_COUNTDOWN_SECONDS - 1, 0, -1):
                 time.sleep(1)
                 try:
                     btn.config(text=f"⌨️  כתוב בעורך ({i}...)")
@@ -88,11 +91,11 @@ def _build_window(tag_type: str, content: str) -> tk.Tk:
                 root.destroy()
             except Exception:
                 pass
-            time.sleep(0.4)   # let SEB editor regain focus
-            typer.type_text(content)
+            time.sleep(FOCUS_REGAIN_DELAY)  # let SEB editor regain focus
+            keyboard_input.type_text(content)
 
         def on_click():
-            btn.config(state="disabled", text="⌨️  כתוב בעורך (3...)")
+            btn.config(state="disabled")
             threading.Thread(target=countdown, daemon=True).start()
 
         btn.config(command=on_click)
@@ -101,7 +104,7 @@ def _build_window(tag_type: str, content: str) -> tk.Tk:
               bg=SURFACE, fg=FG, relief="flat", padx=10,
               font=("Consolas", 9)).pack(side="left", padx=3)
 
-    if tag_type in ("SOLVE", "FIX"):
+    if tag_type in TYPE_ELIGIBLE_TAGS:
         make_type_btn()
 
     return root

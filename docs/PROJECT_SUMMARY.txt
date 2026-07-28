@@ -1,12 +1,11 @@
 =====================================
-   SEB Agent — סיכום פרויקט
+   SEB Bot — סיכום פרויקט
    עדכון אחרון: יוני 2026
 =====================================
 
 מה הפרויקט:
-סוכן AI שרץ ברקע על מחשב Windows ומאפשר לתלמידות
-לתקשר עם AI מתוך דפדפן מאובטח (Safe Exam Browser — SEB),
-שחוסם העתקה, הדבקה וצילום מסך.
+סוכן AI שרץ ברקע על מחשב Windows ומאפשר
+לתקשר עם AI מתוך דפדפן  (Safe Exam Browser — SEB),
 
 פלטפורמת הלמידה: Ultracode (ultracode.co.il)
 עורך קוד: Monaco editor בתוך Chrome
@@ -28,9 +27,10 @@
   הסוכן מתעלם מחלון ה-Terminal שלו עצמו.
 
 מודל AI:
-  Google Gemini 2.0 Flash Lite — חינמי לחלוטין.
-  מפתח API מ: https://aistudio.google.com/apikey
-  הפורמט החדש של המפתח מתחיל ב-AQ. (לא AIzaSy).
+  תמיכה במספר ספקי AI — הבחירה אוטומטית לפי פורמט ה-API key:
+    Google Gemini  — מפתח מתחיל ב-AQ. או AIzaSy — https://aistudio.google.com/apikey
+    Groq           — מפתח מתחיל ב-gsk_          — https://console.groq.com/keys
+    Mistral        — כל מפתח אחר                — https://console.mistral.ai/api-keys
   Retry אוטומטי x3 על שגיאות 429 (rate limit).
   חיסכון בטוקנים: system prompts קצרים, max_tokens מוגבל.
 
@@ -57,19 +57,23 @@
  קבצי הפרויקט
 =====================================
 
-main.py          — לולאה ראשית, debounce, ניהול תגיות
-reader.py        — קריאת טקסט מ-UIAutomation
-detector.py      — זיהוי תגיות, hash למניעת כפילויות
-claude_client.py — קריאות Gemini API, retry, token efficiency
-popup_window.py  — חלון תשובה (tkinter, always-on-top)
-typer.py         — הקלדה אוטומטית לתוך עורך הקוד
-config.py        — טעינת settings.json
-settings.json    — API key + הגדרות
-install.bat         — התקנת dependencies (פעם אחת)
-start.bat           — הרצת הסוכן
+main.py             — לולאה ראשית, debounce, dispatch לתגיות
+config.py           — טעינת + validation של settings.json
+constants.py        — כל הקבועים (timeouts, limits, וכו')
+reader.py           — קריאת טקסט מ-UIAutomation
+detector.py         — זיהוי תגיות, hash למניעת כפילויות
+ai_provider.py      — Gemini / Groq / Mistral, retry, token efficiency
+tag_handlers.py     — handler נפרד לכל סוג תגית
+ui_window.py        — חלון תשובה (tkinter, always-on-top)
+keyboard_input.py   — הקלדה אוטומטית לתוך עורך הקוד
+clipboard_utils.py  — פונקציית Clipboard משותפת
+settings.json       — API key + הגדרות (לא עולה ל-GitHub)
+settings.example.json — תבנית להעתקה
+scripts/install.bat — התקנת dependencies (פעם אחת)
+scripts/start.bat   — הרצת הסוכן
 .gitignore          — מונע העלאת settings.json ותמונות ל-GitHub
-TAGS_GUIDE.txt      — מדריך שימוש בתגיות
-PROJECT_SUMMARY.txt — קובץ זה
+docs/TAGS_GUIDE.txt      — מדריך שימוש בתגיות
+docs/PROJECT_SUMMARY.txt — קובץ זה
 
 חשוב: settings.json לא עולה ל-GitHub (מכיל API key).
 כל מחשב של תלמידה צריך settings.json משלה עם ה-API key.
