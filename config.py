@@ -4,9 +4,7 @@ Loads settings.json (gitignored) and validates required fields.
 """
 
 import json
-import sys
 from pathlib import Path
-from typing import Literal
 
 _SETTINGS_FILE = Path(__file__).parent / "settings.json"
 _EXAMPLE_FILE = Path(__file__).parent / "settings.example.json"
@@ -73,21 +71,12 @@ def load() -> dict:
                 json.dumps(_DEFAULTS, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
-        return _DEFAULTS.copy()
 
     with open(_SETTINGS_FILE, encoding="utf-8") as f:
         raw = json.load(f)
 
     merged = {**_DEFAULTS, **raw}
     return _validate(merged)
-
-
-def reload() -> dict:
-    """Reload settings from disk. Updates the module-level Settings dict in place."""
-    global Settings
-    Settings.clear()
-    Settings.update(load())
-    return Settings
 
 
 Settings = load()

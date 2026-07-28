@@ -8,7 +8,6 @@ import re
 import hashlib
 
 _TAG_RE = re.compile(r'@@([A-Za-z]+)\s*:?\s*(.*?)@@', re.DOTALL)
-_TAG_BARE = re.compile(r'@@(COPYALL|COPYABOVE|SCREENSHOT|SOLVEALL)@@')
 
 KNOWN_TAGS = {"ASK", "SOLVE", "FIX", "COPY", "COPYALL", "COPYABOVE", "SCREENSHOT", "SOLVEALL", "ASKALL"}
 
@@ -28,10 +27,6 @@ def peek_tag(text: str) -> tuple[str, str] | None:
         content = m.group(2).strip()
         if tag in KNOWN_TAGS:
             candidates.append((m.start(), tag, content))
-
-    for m in _TAG_BARE.finditer(text):
-        tag = m.group(1).upper().strip()
-        candidates.append((m.start(), tag, ""))
 
     if not candidates:
         return None

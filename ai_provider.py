@@ -4,9 +4,10 @@ Supports: Google Gemini, Groq, Mistral (with automatic provider detection).
 """
 
 import time
+import threading
 from abc import ABC, abstractmethod
 from config import Settings
-from constants import RETRY_ATTEMPTS, RETRY_WAIT_SECONDS, FIX_CONTEXT_LIMIT
+from constants import RETRY_ATTEMPTS, RETRY_WAIT_SECONDS
 
 # ── System Prompts ────────────────────────────────────────────────────────────
 
@@ -63,16 +64,38 @@ def detect_provider() -> str:
 # ── Base Provider Class ────────────────────────────────────────────────────────
 
 class AIProvider(ABC):
-    """Abstract base class for AI providers."""
+    """Abstract base class for AI providers. Handles the shared retry loop."""
 
     @abstractmethod
-    def generate(self, tag_type: str, user_msg: str) -> str:
-        """Generate AI response."""
+    def _request(self, tag_type: str, user_msg: str):
+        """
+        Perform one attempt at the underlying API call.
+        Must raise on failure. May raise RateLimitError to trigger a retry.
+        """
         pass
 
-    def _log_rate_limit(self, attempt: int):
-        """Log rate limit message."""
-        print(f"[AI] Rate limit — ממתין 15 שניות... (ניסיון {attempt}/{RETRY_ATTEMPTS})")
+    def generate(self, tag_type: str, user_msg: str) -> str:
+        """Generate an AI response, retrying on rate limits."""
+        for attempt in range(1, RETRY_ATTEMPTS + 1):
+            try:
+                return self._request(tag_type, user_msg)
+            except RateLimitError:
+                if attempt < RETRY_ATTEMPTS:
+                    print(f"[AI] Rate limit — ממתין {RETRY_WAIT_SECONDS} שניות... (ניסיון {attempt}/{RETRY_ATTEMPTS})")
+                    time.sleep(RETRY_WAIT_SECONDS)
+                else:
+                    raise
+
+
+class RateLimitError(Exception):
+    """Raised by a provider's _request() to signal a 429 (triggers retry)."""
+    pass
+
+
+def _system_and_limit(tag_type: str):
+    system = SYSTEM_PROMPTS.get(tag_type, SYSTEM_PROMPTS["ASK"])
+    max_tokens = MAX_TOKENS.get(tag_type, 300)
+    return system, max_tokens
 
 
 # ── Gemini Provider ────────────────────────────────────────────────────────────
@@ -88,41 +111,36 @@ class GeminiProvider(AIProvider):
         if self.client is None:
             try:
                 from google import genai
-                self.client = genai.Client(api_key=Settings["api_key"])
             except ImportError:
                 raise ImportError(
                     "google-genai not installed. "
                     "Install with: pip install google-genai"
                 )
+            self.client = genai.Client(api_key=Settings["api_key"])
         return self.client
 
-    def generate(self, tag_type: str, user_msg: str) -> str:
-        """Generate response via Gemini."""
+    def _request(self, tag_type: str, user_msg: str) -> str:
         from google.genai import types
 
         client = self._get_client()
-        system = SYSTEM_PROMPTS.get(tag_type, SYSTEM_PROMPTS["ASK"])
-        max_tokens = MAX_TOKENS.get(tag_type, 300)
+        system, max_tokens = _system_and_limit(tag_type)
         model = Settings.get("model", "gemini-2.0-flash-lite")
 
-        for attempt in range(1, RETRY_ATTEMPTS + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=user_msg,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        max_output_tokens=max_tokens,
-                        temperature=0.3,
-                    ),
-                )
-                return response.text.strip()
-            except Exception as e:
-                if "429" in str(e) and attempt < RETRY_ATTEMPTS:
-                    self._log_rate_limit(attempt)
-                    time.sleep(RETRY_WAIT_SECONDS)
-                else:
-                    raise
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=user_msg,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                    temperature=0.3,
+                ),
+            )
+            return response.text.strip()
+        except Exception as e:
+            if "429" in str(e):
+                raise RateLimitError(str(e)) from e
+            raise
 
 
 # ── Groq Provider ────────────────────────────────────────────────────────────
@@ -138,39 +156,34 @@ class GroqProvider(AIProvider):
         if self.client is None:
             try:
                 from groq import Groq
-                self.client = Groq(api_key=Settings["api_key"])
             except ImportError:
                 raise ImportError(
                     "groq not installed. "
                     "Install with: pip install groq"
                 )
+            self.client = Groq(api_key=Settings["api_key"])
         return self.client
 
-    def generate(self, tag_type: str, user_msg: str) -> str:
-        """Generate response via Groq."""
+    def _request(self, tag_type: str, user_msg: str) -> str:
         client = self._get_client()
-        system = SYSTEM_PROMPTS.get(tag_type, SYSTEM_PROMPTS["ASK"])
-        max_tokens = MAX_TOKENS.get(tag_type, 300)
+        system, max_tokens = _system_and_limit(tag_type)
         model = Settings.get("model", "llama-3.3-70b-versatile")
 
-        for attempt in range(1, RETRY_ATTEMPTS + 1):
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    max_tokens=max_tokens,
-                    temperature=0.3,
-                )
-                return resp.choices[0].message.content.strip()
-            except Exception as e:
-                if "429" in str(e) and attempt < RETRY_ATTEMPTS:
-                    self._log_rate_limit(attempt)
-                    time.sleep(RETRY_WAIT_SECONDS)
-                else:
-                    raise
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.3,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e):
+                raise RateLimitError(str(e)) from e
+            raise
 
 
 # ── Mistral Provider ────────────────────────────────────────────────────────
@@ -178,8 +191,7 @@ class GroqProvider(AIProvider):
 class MistralProvider(AIProvider):
     """Mistral AI provider."""
 
-    def generate(self, tag_type: str, user_msg: str) -> str:
-        """Generate response via Mistral."""
+    def _request(self, tag_type: str, user_msg: str) -> str:
         try:
             import requests
         except ImportError:
@@ -188,72 +200,54 @@ class MistralProvider(AIProvider):
                 "Install with: pip install requests"
             )
 
-        system = SYSTEM_PROMPTS.get(tag_type, SYSTEM_PROMPTS["ASK"])
-        max_tokens = MAX_TOKENS.get(tag_type, 300)
+        system, max_tokens = _system_and_limit(tag_type)
         model = Settings.get("model", "mistral-small-latest")
 
-        for attempt in range(1, RETRY_ATTEMPTS + 1):
-            try:
-                resp = requests.post(
-                    "https://api.mistral.ai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {Settings['api_key']}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user_msg}
-                        ],
-                        "max_tokens": max_tokens,
-                        "temperature": 0.3
-                    },
-                    timeout=30,
-                )
+        resp = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {Settings['api_key']}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg}
+                ],
+                "max_tokens": max_tokens,
+                "temperature": 0.3
+            },
+            timeout=30,
+        )
 
-                if resp.status_code == 429 and attempt < RETRY_ATTEMPTS:
-                    self._log_rate_limit(attempt)
-                    time.sleep(RETRY_WAIT_SECONDS)
-                    continue
+        if resp.status_code == 429:
+            raise RateLimitError(f"429: {resp.text}")
 
-                resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"].strip()
-            except Exception as e:
-                if attempt < RETRY_ATTEMPTS and "429" in str(e):
-                    self._log_rate_limit(attempt)
-                    time.sleep(RETRY_WAIT_SECONDS)
-                else:
-                    raise
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
 
 
 # ── Provider Factory ────────────────────────────────────────────────────────
 
-_provider_instances = {
-    "gemini": None,
-    "groq": None,
-    "mistral": None,
+_PROVIDER_CLASSES = {
+    "gemini": GeminiProvider,
+    "groq": GroqProvider,
+    "mistral": MistralProvider,
 }
+
+_provider_instances = {}
+_provider_lock = threading.Lock()
 
 
 def get_provider() -> AIProvider:
-    """Get the configured AI provider instance."""
+    """Get the configured AI provider instance (thread-safe lazy singleton)."""
     provider_name = detect_provider()
 
-    if provider_name == "gemini":
-        if _provider_instances["gemini"] is None:
-            _provider_instances["gemini"] = GeminiProvider()
-        return _provider_instances["gemini"]
-
-    elif provider_name == "groq":
-        if _provider_instances["groq"] is None:
-            _provider_instances["groq"] = GroqProvider()
-        return _provider_instances["groq"]
-
-    else:  # mistral
-        if _provider_instances["mistral"] is None:
-            _provider_instances["mistral"] = MistralProvider()
-        return _provider_instances["mistral"]
+    with _provider_lock:
+        if provider_name not in _provider_instances:
+            _provider_instances[provider_name] = _PROVIDER_CLASSES[provider_name]()
+        return _provider_instances[provider_name]
 
 
 def ask_ai(tag_type: str, content: str, context: str = "") -> str:
@@ -263,14 +257,13 @@ def ask_ai(tag_type: str, content: str, context: str = "") -> str:
     Args:
         tag_type: Type of tag (ASK, SOLVE, FIX, etc.)
         content: Main content of the request
-        context: Optional context (e.g., code to fix)
+        context: Optional context (e.g., code to fix). Caller is responsible
+            for truncating context to a reasonable size before calling.
 
     Returns:
         AI response text
     """
     if tag_type == "FIX" and context:
-        if len(context) > FIX_CONTEXT_LIMIT:
-            context = context[-FIX_CONTEXT_LIMIT:]
         user_msg = f"Code:\n{context}\n\nFix instruction: {content}"
     else:
         user_msg = content

@@ -43,7 +43,12 @@ def _check_dependencies():
 
 _check_dependencies()
 
-from config import Settings, is_api_key_configured, ConfigError
+try:
+    from config import Settings, is_api_key_configured
+except Exception as e:
+    print(f"❌  שגיאה בקובץ settings.json: {e}")
+    print("   תקני את הערך ונסי שוב.")
+    sys.exit(1)
 
 if not is_api_key_configured(Settings):
     print("❌  חסר API key ב-settings.json")
