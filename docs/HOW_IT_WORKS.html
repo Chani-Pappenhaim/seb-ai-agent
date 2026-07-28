@@ -80,25 +80,27 @@ details pre { border: none; border-radius: 0 0 8px 8px; margin: 0; }
 <div class="container">
 
 <h1>SEB Bot — הסבר מלא על הפרויקט</h1>
-<p class="subtitle">כל קובץ, כל שורה, כל פונקציה — עם הסברים בעברית</p>
+<p class="subtitle">כל קובץ, כל שורה, כל פונקציה — עם הסברים בעברית (מעודכן לארכיטקטורה אחרי רפקטורינג)</p>
 
 <div class="toc">
   <h3>תוכן עניינים</h3>
   <ol>
     <li><a href="#s1">מה הפרויקט עושה — הרעיון הגדול</a></li>
     <li><a href="#s2">מבנה הקבצים</a></li>
-    <li><a href="#s3">install.bat — התקנה</a></li>
-    <li><a href="#s4">start.bat — הרצה</a></li>
+    <li><a href="#s3">scripts/install.bat — התקנה</a></li>
+    <li><a href="#s4">scripts/start.bat — הרצה</a></li>
     <li><a href="#s5">settings.json + config.py</a></li>
     <li><a href="#s6">reader.py — קריאת טקסט מ-SEB</a></li>
     <li><a href="#s7">detector.py — זיהוי תגיות</a></li>
     <li><a href="#s8">main.py — הלב: לולאה ו-debounce</a></li>
-    <li><a href="#s9">claude_client.py — Gemini AI</a></li>
-    <li><a href="#s10">popup_window.py — חלון התשובה</a></li>
-    <li><a href="#s11">typer.py — הקלדה אוטומטית</a></li>
-    <li><a href="#s12">טבלת כל התגיות</a></li>
-    <li><a href="#s13">דוגמה חיה — מקצה לקצה</a></li>
-    <li><a href="#s14">אזהרות ובעיות נפוצות</a></li>
+    <li><a href="#s9">ai_provider.py — שכבת ה-AI (Gemini / Groq / Mistral)</a></li>
+    <li><a href="#s10">tag_handlers.py — handler לכל תגית</a></li>
+    <li><a href="#s11">ui_window.py — חלון התשובה</a></li>
+    <li><a href="#s12">keyboard_input.py — הקלדה אוטומטית</a></li>
+    <li><a href="#s13">clipboard_utils.py — Clipboard משותף</a></li>
+    <li><a href="#s14">טבלת כל התגיות</a></li>
+    <li><a href="#s15">דוגמה חיה — מקצה לקצה</a></li>
+    <li><a href="#s16">אזהרות ובעיות נפוצות</a></li>
   </ol>
 </div>
 
@@ -111,11 +113,11 @@ details pre { border: none; border-radius: 0 0 8px 8px; margin: 0; }
   <li>PrintScreen (צילום מסך)</li>
   <li>פתיחת תוכנות מתוכו</li>
 </ul>
-<p><strong>הפתרון:</strong> תוכנת Python שרצה ב-Background — לא בתוך הדפדפן, אלא כחלון Windows נפרד שה-SEB לא רואה. היא:</p>
+<p><strong>הפתרון:</strong> תוכנת Python שרצה ב-Background — לא בתוך הדפדפן, אלא כתהליך Windows נפרד שה-SEB לא רואה. היא:</p>
 <ul>
   <li>קוראת טקסט ישירות מהחלון הפעיל דרך Windows UIAutomation API</li>
   <li>מזהה תגיות שהתלמידה כותבת בעורך הקוד</li>
-  <li>שולחת שאלות ל-Gemini AI ומציגה תשובה בחלון צף</li>
+  <li>שולחת שאלות לאחד מכמה ספקי AI (Gemini / Groq / Mistral) ומציגה תשובה בחלון צף</li>
   <li>מצלמת מסך ומעתיקה ל-Clipboard — הכל דרך Windows, לא דרך הדפדפן</li>
 </ul>
 
@@ -128,48 +130,65 @@ details pre { border: none; border-radius: 0 0 8px 8px; margin: 0; }
   <div class="flow-arrow">←</div>
   <div class="flow-box"><span class="icon">⏱️</span><div class="label">main.py</div><div class="desc">debounce</div></div>
   <div class="flow-arrow">←</div>
-  <div class="flow-box"><span class="icon">🤖</span><div class="label">Gemini AI</div><div class="desc">תשובה</div></div>
+  <div class="flow-box"><span class="icon">🧩</span><div class="label">tag_handlers.py</div><div class="desc">dispatch</div></div>
   <div class="flow-arrow">←</div>
-  <div class="flow-box"><span class="icon">💬</span><div class="label">popup</div><div class="desc">חלון צף</div></div>
+  <div class="flow-box"><span class="icon">🤖</span><div class="label">ai_provider.py</div><div class="desc">Gemini/Groq/Mistral</div></div>
+  <div class="flow-arrow">←</div>
+  <div class="flow-box"><span class="icon">💬</span><div class="label">ui_window.py</div><div class="desc">חלון צף</div></div>
+</div>
+
+<div class="note">
+  <strong>מה השתנה מהגרסה הראשונה?</strong> הרעיון והתגיות זהים לחלוטין. מה שהשתנה זה הארגון הפנימי: קובץ AI אחד ענק פוצל לספק-לכל-ספק, לולאת ה-if/elif הענקית ב-main.py פוצלה ל-handler נפרד לכל תגית, וכל הקבועים (timeouts, מגבלות אורך) רוכזו במקום אחד.
 </div>
 
 <!-- ══ 2 ══ -->
 <h2 id="s2"><span class="num">2</span> מבנה הקבצים</h2>
 
 <div class="cards">
-  <div class="card" style="--ac:#f9e2af"><div class="fname">install.bat</div><div class="role" style="color:#f9e2af">התקנה — פעם אחת</div><p>מוריד את כל ה-libraries</p></div>
-  <div class="card" style="--ac:#f9e2af"><div class="fname">start.bat</div><div class="role" style="color:#f9e2af">הרצה — לפני בחינה</div><p>פותח Terminal ומריץ main.py</p></div>
-  <div class="card" style="--ac:#6c7086"><div class="fname">settings.json</div><div class="role" style="color:#6c7086">הגדרות (לא ב-GitHub)</div><p>API key, מודל, מהירות הקלדה</p></div>
-  <div class="card" style="--ac:#cba6f7"><div class="fname">config.py</div><div class="role" style="color:#cba6f7">טוען הגדרות</div><p>קורא settings.json ומספק לכולם</p></div>
-  <div class="card" style="--ac:#89b4fa"><div class="fname">main.py</div><div class="role" style="color:#89b4fa">הלב</div><p>לולאה ראשית, debounce, dispatch לתגיות</p></div>
+  <div class="card" style="--ac:#89b4fa"><div class="fname">main.py</div><div class="role" style="color:#89b4fa">הלב</div><p>לולאה ראשית, debounce, בדיקות startup, dispatch לתגיות</p></div>
+  <div class="card" style="--ac:#cba6f7"><div class="fname">config.py</div><div class="role" style="color:#cba6f7">הגדרות</div><p>טוען + מוודא settings.json, זורק שגיאה ברורה אם לא תקין</p></div>
+  <div class="card" style="--ac:#6c7086"><div class="fname">constants.py</div><div class="role" style="color:#6c7086">קבועים</div><p>כל המספרים הקסומים — timeouts, מגבלות אורך, retry</p></div>
   <div class="card" style="--ac:#89b4fa"><div class="fname">reader.py</div><div class="role" style="color:#89b4fa">קריאת טקסט</div><p>UIAutomation — קורא כל חלון בלי Ctrl+C</p></div>
   <div class="card" style="--ac:#89b4fa"><div class="fname">detector.py</div><div class="role" style="color:#89b4fa">זיהוי תגיות</div><p>regex + MD5 hash למניעת כפילויות</p></div>
-  <div class="card" style="--ac:#a6e3a1"><div class="fname">claude_client.py</div><div class="role" style="color:#a6e3a1">AI</div><p>Gemini API, retry אוטומטי, חיסכון בטוקנים</p></div>
-  <div class="card" style="--ac:#fab387"><div class="fname">popup_window.py</div><div class="role" style="color:#fab387">חלון תשובה</div><p>tkinter always-on-top, כפתור "כתוב בעורך"</p></div>
-  <div class="card" style="--ac:#fab387"><div class="fname">typer.py</div><div class="role" style="color:#fab387">הקלדה</div><p>מדמה מקלדת — עוקף חסימת הדבקה</p></div>
+  <div class="card" style="--ac:#a6e3a1"><div class="fname">ai_provider.py</div><div class="role" style="color:#a6e3a1">AI</div><p>Gemini / Groq / Mistral, retry אוטומטי מאוחד, בחירה אוטומטית</p></div>
+  <div class="card" style="--ac:#f9e2af"><div class="fname">tag_handlers.py</div><div class="role" style="color:#f9e2af">Handlers</div><p>פונקציה אחת לכל תגית + registry (HANDLERS)</p></div>
+  <div class="card" style="--ac:#fab387"><div class="fname">ui_window.py</div><div class="role" style="color:#fab387">חלון תשובה</div><p>tkinter always-on-top, כפתור "כתוב בעורך"</p></div>
+  <div class="card" style="--ac:#fab387"><div class="fname">keyboard_input.py</div><div class="role" style="color:#fab387">הקלדה</div><p>מדמה מקלדת — עוקף חסימת הדבקה</p></div>
+  <div class="card" style="--ac:#f38ba8"><div class="fname">clipboard_utils.py</div><div class="role" style="color:#f38ba8">Clipboard</div><p>פונקציית העתקה משותפת עם fallback</p></div>
+  <div class="card" style="--ac:#6c7086"><div class="fname">settings.json</div><div class="role" style="color:#6c7086">הגדרות אישיות (לא ב-GitHub)</div><p>API key, ספק, מודל, מהירות הקלדה</p></div>
 </div>
 
+<p style="margin-top:16px"><strong>תיקיות נוספות:</strong></p>
+<ul>
+  <li><code>scripts/</code> — <code>install.bat</code>, <code>start.bat</code></li>
+  <li><code>docs/</code> — המסמך הזה, <code>TAGS_GUIDE.txt</code>, <code>PROJECT_SUMMARY.txt</code></li>
+</ul>
+
 <!-- ══ 3 ══ -->
-<h2 id="s3"><span class="num">3</span> install.bat — התקנה</h2>
+<h2 id="s3"><span class="num">3</span> scripts/install.bat — התקנה</h2>
 <p>מריצים <strong>פעם אחת בלבד</strong> על כל מחשב. מתקין את כל הספריות.</p>
 
 <div class="code-block">
-  <div class="code-file">install.bat</div>
+  <div class="code-file">scripts/install.bat</div>
 <pre>@echo off
-chcp 65001 &gt;nul            <span class="cm">REM הגדרת Unicode כדי שעברית תוצג נכון ב-Terminal</span>
-
+chcp 65001 &gt;nul
+echo ============================================
+echo  SEB Bot - Installing / Updating packages
+echo ============================================
+echo.
+cd /d "%~dp0.."          <span class="cm">REM עולה תיקיה אחת מ-scripts/ חזרה לשורש הפרויקט</span>
 pip uninstall -y google-generativeai 2&gt;nul
 <span class="cm">REM ↑ מסיר את החבילה הישנה שגרמה לשגיאת SSL CERTIFICATE_VERIFY_FAILED</span>
-<span class="cm">REM   החבילה הישנה השתמשה ב-gRPC, החדשה (google-genai) משתמשת ב-REST רגיל</span>
-
 pip install -r requirements.txt
-<span class="cm">REM ↑ מתקין: google-genai, uiautomation, pyautogui, keyboard, pyperclip, Pillow</span>
-
-pause   <span class="cm">REM מחכה ל-Enter לפני שנסגר — כדי שנוכל לראות שגיאות</span></pre>
+echo.
+echo  Done! Run scripts\start.bat to launch the agent.
+pause</pre>
 </div>
 
 <p><strong>מה מותקן (requirements.txt):</strong></p>
 <pre>google-genai&gt;=1.0.0    <span class="cm">← Gemini AI (REST, לא gRPC — ללא בעיות SSL)</span>
+groq&gt;=0.9.0            <span class="cm">← Groq API</span>
+requests&gt;=2.31.0       <span class="cm">← Mistral נקרא ישירות דרך REST, לא SDK ייעודי</span>
 uiautomation&gt;=2.0.18   <span class="cm">← קריאת טקסט מחלונות Windows</span>
 pyautogui&gt;=0.9.54      <span class="cm">← צילום מסך ברמת OS</span>
 keyboard&gt;=0.13.5       <span class="cm">← הקלדה אוטומטית</span>
@@ -177,86 +196,125 @@ pyperclip&gt;=1.9.0       <span class="cm">← Clipboard</span>
 Pillow&gt;=10.0.0         <span class="cm">← שמירת תמונות PNG</span></pre>
 
 <!-- ══ 4 ══ -->
-<h2 id="s4"><span class="num">4</span> start.bat — הרצה</h2>
+<h2 id="s4"><span class="num">4</span> scripts/start.bat — הרצה</h2>
 <p>מריצים <strong>לפני כל בחינה</strong>. ה-Terminal נשאר פתוח ברקע — לא סוגרים אותו.</p>
 
 <div class="code-block">
-  <div class="code-file">start.bat</div>
+  <div class="code-file">scripts/start.bat</div>
 <pre>@echo off
 chcp 65001 &gt;nul
-cd /d "%~dp0"    <span class="cm">REM עובר לתיקיית הקובץ עצמו</span>
-                 <span class="cm">REM %~dp0 = נתיב התיקיה (ללא שם הקובץ)</span>
-                 <span class="cm">REM חשוב: בלי זה Python לא מוצא settings.json</span>
+echo Starting SEB Bot...
+cd /d "%~dp0.."   <span class="cm">REM עולה חזרה לשורש — main.py לא בתיקיית scripts</span>
 python main.py
-pause            <span class="cm">REM נשאר פתוח גם אם יש שגיאה, כדי שנוכל לקרוא אותה</span></pre>
+pause             <span class="cm">REM נשאר פתוח גם אם יש שגיאה, כדי שנוכל לקרוא אותה</span></pre>
 </div>
 
 <!-- ══ 5 ══ -->
 <h2 id="s5"><span class="num">5</span> settings.json + config.py</h2>
 
-<p><code>settings.json</code> — הגדרות אישיות. <strong>לא עולה ל-GitHub</strong> כי מכיל API key.</p>
+<p><code>settings.json</code> — הגדרות אישיות. <strong>לא עולה ל-GitHub</strong> כי מכיל API key (מוגן ע"י <code>.gitignore</code>).</p>
 
 <pre>{
-  <span class="str">"api_key"</span>:       <span class="str">"YOUR_GEMINI_API_KEY_HERE"</span>,  <span class="cm">← מפתח מ-aistudio.google.com/apikey</span>
+  <span class="str">"api_key"</span>:       <span class="str">"YOUR_GOOGLE_GEMINI_API_KEY_HERE"</span>,  <span class="cm">← מפתח מ-Gemini/Groq/Mistral</span>
+  <span class="str">"provider"</span>:      <span class="str">""</span>,   <span class="cm">← "" (זיהוי אוטומטי) | "gemini" | "groq" | "mistral"</span>
   <span class="str">"poll_interval"</span>: <span class="num">1.0</span>,
   <span class="str">"response_mode"</span>: <span class="str">"auto"</span>,    <span class="cm">← "auto"=חלון קופץ  |  "type"=כתיבה לעורך</span>
-  <span class="str">"model"</span>:         <span class="str">"gemini-2.0-flash-lite"</span>,  <span class="cm">← המודל החינמי</span>
+  <span class="str">"model"</span>:         <span class="str">"gemini-2.0-flash-lite"</span>,
   <span class="str">"type_speed"</span>:    <span class="num">0.015</span>,     <span class="cm">← שניות בין תו לתו בהקלדה אוטומטית</span>
   <span class="str">"language"</span>:      <span class="str">"he"</span>
 }</pre>
 
+<p>ה-<strong>ספק (provider)</strong> נבחר אוטומטית לפי צורת ה-API key אם השדה ריק: מפתח שמתחיל ב-<code>gsk_</code> → Groq, מפתח שמתחיל ב-<code>AIzaSy</code> או <code>AQ.</code> → Gemini, כל מפתח אחר → Mistral.</p>
+
 <div class="code-block">
-  <div class="code-file">config.py <span>קורא את settings.json ומספק Settings לכולם</span></div>
+  <div class="code-file">config.py <span>קורא, ממזג עם defaults, ומוודא את settings.json</span></div>
 <pre><span class="kw">import</span> json
 <span class="kw">from</span> pathlib <span class="kw">import</span> Path
 
 _SETTINGS_FILE = Path(__file__).parent / <span class="str">"settings.json"</span>
-<span class="cm"># Path(__file__) = נתיב config.py עצמו</span>
-<span class="cm"># .parent        = התיקיה שמכילה אותו (seb_agent)</span>
+<span class="cm"># פשוט אותה תיקייה כמו config.py עצמו — אין עוד src/ או config/ מקונן</span>
 
 _DEFAULTS = {
     <span class="str">"api_key"</span>: <span class="str">""</span>,
+    <span class="str">"provider"</span>: <span class="str">""</span>,
+    <span class="str">"poll_interval"</span>: <span class="num">1.0</span>,
     <span class="str">"response_mode"</span>: <span class="str">"auto"</span>,
     <span class="str">"model"</span>: <span class="str">"gemini-2.0-flash-lite"</span>,
     <span class="str">"type_speed"</span>: <span class="num">0.015</span>,
+    <span class="str">"language"</span>: <span class="str">"he"</span>,
 }
 
-<span class="kw">def</span> <span class="fn">load</span>() -&gt; dict:
-    <span class="kw">if</span> _SETTINGS_FILE.exists():
-        <span class="kw">with</span> <span class="fn">open</span>(_SETTINGS_FILE, encoding=<span class="str">"utf-8"</span>) <span class="kw">as</span> f:
-            <span class="kw">return</span> {**_DEFAULTS, **json.<span class="fn">load</span>(f)}
-            <span class="cm"># ** = ממזג שני dictionaries. ערכי JSON דורסים את _DEFAULTS</span>
-    <span class="kw">return</span> _DEFAULTS.copy()
+VALID_RESPONSE_MODES = (<span class="str">"auto"</span>, <span class="str">"type"</span>)
+VALID_PROVIDERS = (<span class="str">""</span>, <span class="str">"gemini"</span>, <span class="str">"groq"</span>, <span class="str">"mistral"</span>)
 
-Settings = <span class="fn">load</span>()   <span class="cm"># מריץ מיד בטעינה. כל קובץ אחר: from config import Settings</span></pre>
+<span class="kw">class</span> <span class="cls">ConfigError</span>(Exception):
+    <span class="cm">"""נזרק אם settings.json חסר שדה או ערך לא תקין."""</span>
+    <span class="kw">pass</span>
+
+<span class="kw">def</span> <span class="fn">_validate</span>(settings: dict) -&gt; dict:
+    <span class="kw">if</span> settings[<span class="str">"response_mode"</span>] <span class="kw">not in</span> VALID_RESPONSE_MODES:
+        <span class="kw">raise</span> <span class="cls">ConfigError</span>(<span class="str">f"response_mode must be one of {VALID_RESPONSE_MODES}..."</span>)
+    <span class="kw">if</span> settings[<span class="str">"provider"</span>] <span class="kw">not in</span> VALID_PROVIDERS:
+        <span class="kw">raise</span> <span class="cls">ConfigError</span>(<span class="str">f"provider must be one of {VALID_PROVIDERS}..."</span>)
+    <span class="kw">if</span> settings[<span class="str">"poll_interval"</span>] &lt;= <span class="num">0</span>:
+        <span class="kw">raise</span> <span class="cls">ConfigError</span>(<span class="str">"poll_interval must be greater than 0"</span>)
+    <span class="kw">if</span> settings[<span class="str">"type_speed"</span>] &lt; <span class="num">0</span>:
+        <span class="kw">raise</span> <span class="cls">ConfigError</span>(<span class="str">"type_speed must be non-negative"</span>)
+    <span class="kw">return</span> settings
+
+<span class="kw">def</span> <span class="fn">is_api_key_configured</span>(settings: dict) -&gt; bool:
+    key = settings.<span class="fn">get</span>(<span class="str">"api_key"</span>, <span class="str">""</span>)
+    <span class="kw">return</span> <span class="fn">bool</span>(key) <span class="kw">and</span> <span class="str">"YOUR_"</span> <span class="kw">not in</span> key
+
+<span class="kw">def</span> <span class="fn">load</span>() -&gt; dict:
+    <span class="kw">if not</span> _SETTINGS_FILE.<span class="fn">exists</span>():
+        <span class="cm"># אין settings.json? מעתיקים מ-settings.example.json (או יוצרים defaults)</span>
+        <span class="kw">if</span> _EXAMPLE_FILE.<span class="fn">exists</span>():
+            shutil.<span class="fn">copy</span>(_EXAMPLE_FILE, _SETTINGS_FILE)
+        <span class="kw">else</span>:
+            _SETTINGS_FILE.<span class="fn">write_text</span>(json.<span class="fn">dumps</span>(_DEFAULTS, ...))
+
+    <span class="kw">with</span> <span class="fn">open</span>(_SETTINGS_FILE, encoding=<span class="str">"utf-8"</span>) <span class="kw">as</span> f:
+        raw = json.<span class="fn">load</span>(f)
+    merged = {**_DEFAULTS, **raw}
+    <span class="kw">return</span> <span class="fn">_validate</span>(merged)   <span class="cm"># זורק ConfigError אם משהו לא תקין</span>
+
+Settings = <span class="fn">load</span>()   <span class="cm"># רץ מיד בטעינה. כל קובץ אחר: from config import Settings</span></pre>
+</div>
+
+<div class="note">
+  <strong>למה validation?</strong> לפני כן, ערך שגוי כמו <code>response_mode: "popup"</code> היה פשוט מתנהג בשקט כמו "auto" — בלי אף אזהרה. עכשיו <code>_validate()</code> זורק <code>ConfigError</code> מיד עם הפעלה, ו-<code>main.py</code> תופס אותה ומציג הודעה ברורה בעברית במקום traceback.
 </div>
 
 <!-- ══ 6 ══ -->
 <h2 id="s6"><span class="num">6</span> reader.py — קריאת טקסט מ-SEB</h2>
 
-<p>זה הפתרון הטכני המרכזי. <strong>Windows UIAutomation</strong> הוא API נגישות (accessibility) של מערכת ההפעלה — נועד לקוראי מסך. SEB לא חוסם אותו כי הוא חלק מ-Windows עצמו, לא מהדפדפן.</p>
+<p>זה הפתרון הטכני המרכזי, ולא השתנה בין הגרסאות. <strong>Windows UIAutomation</strong> הוא API נגישות (accessibility) של מערכת ההפעלה — נועד לקוראי מסך. SEB לא חוסם אותו כי הוא חלק מ-Windows עצמו, לא מהדפדפן.</p>
 
 <div class="code-block">
   <div class="code-file">reader.py — הפונקציה הראשית</div>
-<pre><span class="kw">def</span> <span class="fn">read_focused_text</span>() -&gt; str | None:
-    <span class="kw">import</span> uiautomation <span class="kw">as</span> auto
+<pre><span class="kw">def</span> <span class="fn">read_focused_text</span>() -&gt; Optional[str]:
+    <span class="kw">try</span>:
+        <span class="kw">import</span> uiautomation <span class="kw">as</span> auto
+    <span class="kw">except</span> ImportError:
+        <span class="fn">print</span>(<span class="str">"[reader] uiautomation not installed..."</span>)
+        <span class="kw">return None</span>
 
     <span class="cm"># ── שלב 0: בדוק שהחלון הפעיל לא שלנו ──────────────</span>
-    fg = auto.<span class="fn">GetForegroundControl</span>()    <span class="cm"># החלון שבפוקוס עכשיו</span>
+    fg = auto.<span class="fn">GetForegroundControl</span>()
     <span class="kw">if</span> fg <span class="kw">and</span> <span class="fn">_should_ignore</span>(fg.Name):
         <span class="kw">return None</span>    <span class="cm"># Terminal / Notepad שלנו — תתעלם</span>
 
     <span class="cm"># ── שלב 1: קריאה מהירה מהאלמנט בפוקוס ─────────────</span>
-    ctrl = auto.<span class="fn">GetFocusedControl</span>()     <span class="cm"># האלמנט שהסמן עליו</span>
+    ctrl = auto.<span class="fn">GetFocusedControl</span>()
     <span class="kw">if</span> ctrl:
         v = <span class="fn">_extract</span>(ctrl)
         <span class="kw">if</span> v <span class="kw">and</span> <span class="str">"@@"</span> <span class="kw">in</span> v:
             <span class="kw">return</span> v    <span class="cm"># מצאנו! הכי מהיר</span>
 
-        <span class="cm"># ── שלב 2: עלייה בהורים ─────────────────────────────</span>
-        <span class="cm"># Monaco editor שומר טקסט בהורה, לא בתיבת הקלט עצמה</span>
+        <span class="cm"># ── שלב 2: עלייה בהורים (Monaco עוטף טקסט ב-divs) ──</span>
         parent = ctrl.<span class="fn">GetParentControl</span>()
-        <span class="kw">for</span> _ <span class="kw">in</span> range(<span class="num">5</span>):    <span class="cm"># עד 5 רמות למעלה</span>
+        <span class="kw">for</span> _ <span class="kw">in</span> range(MAX_PARENT_WALK_UP):    <span class="cm"># מ-constants.py, ברירת מחדל 5</span>
             <span class="kw">if</span> parent <span class="kw">is None</span>: <span class="kw">break</span>
             v = <span class="fn">_extract</span>(parent)
             <span class="kw">if</span> v <span class="kw">and</span> <span class="str">"@@"</span> <span class="kw">in</span> v: <span class="kw">return</span> v
@@ -264,38 +322,13 @@ Settings = <span class="fn">load</span>()   <span class="cm"># מריץ מיד �
 
     <span class="cm"># ── שלב 3: חיפוש בעץ המלא ──────────────────────────</span>
     <span class="kw">if</span> fg:
-        <span class="kw">return</span> <span class="fn">_search_tree</span>(fg, depth=<span class="num">0</span>)    <span class="cm"># עובר על כל הילדים עד עומק 7</span></pre>
-</div>
-
-<div class="code-block">
-  <div class="code-file">reader.py — _extract() ו-_should_ignore()</div>
-<pre><span class="cm"># 3 דרכים לקרוא טקסט מאלמנט — מנסה עד שאחת עובדת</span>
-<span class="kw">def</span> <span class="fn">_extract</span>(ctrl) -&gt; str | None:
-    <span class="kw">for</span> getter <span class="kw">in</span> [
-        <span class="kw">lambda</span> c: c.<span class="fn">GetValuePattern</span>().Value,              <span class="cm"># שדה טקסט (input)</span>
-        <span class="kw">lambda</span> c: c.<span class="fn">GetTextPattern</span>().DocumentRange.<span class="fn">GetText</span>(-<span class="num">1</span>),  <span class="cm"># עורך טקסט</span>
-        <span class="kw">lambda</span> c: c.Name,                                   <span class="cm"># שם האלמנט</span>
-    ]:
-        <span class="kw">try</span>:
-            v = <span class="fn">getter</span>(ctrl)
-            <span class="kw">if</span> v <span class="kw">and</span> v.<span class="fn">strip</span>(): <span class="kw">return</span> v
-        <span class="kw">except</span>: <span class="kw">pass</span>
-    <span class="kw">return None</span>
-
-<span class="cm"># רשימת חלונות שמתעלמים מהם</span>
-_IGNORE_TITLES = (<span class="str">"seb agent"</span>, <span class="str">"cmd.exe"</span>, <span class="str">"command prompt"</span>, <span class="str">"powershell"</span>,
-                  <span class="str">"windows terminal"</span>, <span class="str">"visual studio code"</span>,
-                  <span class="str">"notepad++"</span>, <span class="str">"notepad"</span>, <span class="str">"wordpad"</span>,
-                  <span class="str">".txt"</span>, <span class="str">".py"</span>, <span class="str">"tags_guide"</span>, <span class="str">"project_summary"</span>)
-
-<span class="kw">def</span> <span class="fn">_should_ignore</span>(title: str) -&gt; bool:
-    t = (title <span class="kw">or</span> <span class="str">""</span>).<span class="fn">lower</span>()
-    <span class="kw">return</span> <span class="fn">any</span>(x <span class="kw">in</span> t <span class="kw">for</span> x <span class="kw">in</span> _IGNORE_TITLES)</pre>
+        <span class="kw">return</span> <span class="fn">_search_tree</span>(fg, depth=<span class="num">0</span>)   <span class="cm"># עד MAX_TREE_SEARCH_DEPTH (7)</span></pre>
 </div>
 
 <div class="note">
-  <strong>למה להתעלם מ-Notepad?</strong> אם TAGS_GUIDE.txt פתוח ב-Notepad, הוא מלא @@תגיות@@ והסוכן יתבלבל. לכן כל קובץ .txt וכל Notepad מתעלמים.<br><br>
-  <strong>למה לעלות בהורים?</strong> Monaco editor (של Ultracode) בנוי מ-divs בתוך divs. הפוקוס עלול להיות על div פנימי ריק. הפתרון: עוברים עד 5 הורים למעלה עד שמוצאים את הטקסט.
+  <strong>למה להתעלם מ-Notepad?</strong> אם TAGS_GUIDE.txt פתוח ב-Notepad, הוא מלא @@תגיות@@ והסוכן יתבלבל. לכן כל קובץ .txt וכל Notepad מתעלמים (<code>_IGNORE_TITLES</code>).<br><br>
+  <strong>למה לעלות בהורים?</strong> Monaco editor (של Ultracode) בנוי מ-divs בתוך divs. הפוקוס עלול להיות על div פנימי ריק. הפתרון: עוברים עד <code>MAX_PARENT_WALK_UP</code> הורים למעלה עד שמוצאים את הטקסט.<br><br>
+  <strong>מה השתנה?</strong> אותה לוגיקה בדיוק — רק ה-<code>5</code> וה-<code>7</code> הקשיחים הפכו לקבועים בשם ב-<code>constants.py</code>, ונוספה בדיקת <code>ImportError</code> מפורשת עם הודעה ברורה אם <code>uiautomation</code> לא מותקן.
 </div>
 
 <!-- ══ 7 ══ -->
@@ -304,10 +337,8 @@ _IGNORE_TITLES = (<span class="str">"seb agent"</span>, <span class="str">"cmd.e
 <div class="code-block">
   <div class="code-file">detector.py — regex + peek_tag()</div>
 <pre><span class="cm"># מוצא @@TAGNAME: תוכן@@ (הנקודותיים אופציונלי, re.DOTALL = כולל שורות חדשות)</span>
+<span class="cm"># רגקס אחד בלבד מטפל גם בתגיות עם תוכן וגם בתגיות "ריקות" כמו @@SCREENSHOT@@</span>
 _TAG_RE = re.compile(<span class="str">r'@@([A-Za-z]+)\s*:?\s*(.*?)@@'</span>, re.DOTALL)
-
-<span class="cm"># תגיות ללא תוכן: @@COPYALL@@ @@SCREENSHOT@@ וכד'</span>
-_TAG_BARE = re.compile(<span class="str">r'@@(COPYALL|COPYABOVE|SCREENSHOT|SOLVEALL)@@'</span>)
 
 KNOWN_TAGS = {<span class="str">"ASK"</span>, <span class="str">"SOLVE"</span>, <span class="str">"FIX"</span>, <span class="str">"COPY"</span>, <span class="str">"COPYALL"</span>,
               <span class="str">"COPYABOVE"</span>, <span class="str">"SCREENSHOT"</span>, <span class="str">"SOLVEALL"</span>, <span class="str">"ASKALL"</span>}
@@ -328,15 +359,13 @@ KNOWN_TAGS = {<span class="str">"ASK"</span>, <span class="str">"SOLVE"</span>, 
 
 <div class="code-block">
   <div class="code-file">detector.py — מניעת כפילויות עם MD5 hash</div>
-<pre>_processed_hash: str | None = None   <span class="cm"># זוכר תגית אחרונה שעובדה</span>
+<pre>_processed_hash: str | None = <span class="kw">None</span>   <span class="cm"># זוכר תגית אחרונה שעובדה</span>
 
 <span class="kw">def</span> <span class="fn">_compute_hash</span>(tag_type: str, content: str) -&gt; str:
     <span class="kw">return</span> hashlib.<span class="fn">md5</span>(f<span class="str">"{tag_type}:{content}"</span>.encode()).<span class="fn">hexdigest</span>()
-    <span class="cm"># "ASK:שאלה" → מחרוזת 32 תווים קבועה. קל להשוות.</span>
 
 <span class="kw">def</span> <span class="fn">is_new</span>(tag_type, content) -&gt; bool:
     <span class="kw">return</span> <span class="fn">_compute_hash</span>(tag_type, content) != _processed_hash
-    <span class="cm"># True = תגית שעוד לא עובדה</span>
 
 <span class="kw">def</span> <span class="fn">mark_processed</span>(tag_type, content):
     <span class="kw">global</span> _processed_hash
@@ -345,7 +374,7 @@ KNOWN_TAGS = {<span class="str">"ASK"</span>, <span class="str">"SOLVE"</span>, 
 </div>
 
 <div class="note">
-  <strong>למה Hash ולא השוואת מחרוזות?</strong> Hash מייצר תמיד 32 תווים, קל לאחסן ולהשוות. אם @@ASK: שאלה@@ כבר טופל — כל עוד הטקסט לא השתנה, Hash זהה ולא נשלח שוב. כשהתלמידה כותבת שאלה חדשה, Hash שונה → is_new() מחזיר True.
+  <strong>מה השתנה?</strong> הגרסה הקודמת הכילה שני regex-ים: <code>_TAG_RE</code> הכללי, ועוד <code>_TAG_BARE</code> נפרד לתגיות ריקות (SCREENSHOT/COPYALL/COPYABOVE/SOLVEALL). בבדיקה התברר ש-<code>_TAG_RE</code> לבד כבר תופס גם את התגיות הריקות (content ריק) — כך ש-<code>_TAG_BARE</code> היה תמיד מייצר candidate כפול וזהה, ו-<code>max()</code> פשוט התעלם ממנו. הוסר קוד מת, אין שינוי בהתנהגות.
 </div>
 
 <!-- ══ 8 ══ -->
@@ -354,190 +383,213 @@ KNOWN_TAGS = {<span class="str">"ASK"</span>, <span class="str">"SOLVE"</span>, 
 <h3>בדיקות בהתחלה</h3>
 <div class="code-block">
   <div class="code-file">main.py — בדיקות לפני שמתחיל</div>
-<pre><span class="cm"># אם settings.json לא קיים — יוצר ויוצא</span>
-<span class="kw">if not</span> _SETTINGS_PATH.exists():
-    _SETTINGS_PATH.<span class="fn">write_text</span>(json.<span class="fn">dumps</span>({<span class="str">"api_key"</span>: <span class="str">"YOUR_..."</span>}, indent=<span class="num">2</span>), ...)
-    <span class="fn">print</span>(<span class="str">"✅ נוצר settings.json — הוסיפי API key ואז הריצי שוב"</span>)
-    sys.<span class="fn">exit</span>(<span class="num">0</span>)
+<pre><span class="cm"># 1. בודק שהחבילות ההכרחיות מותקנות — נכשל מהר עם pip install ברור</span>
+<span class="kw">def</span> <span class="fn">_check_dependencies</span>():
+    missing = [pip_name <span class="kw">for</span> module_name, pip_name <span class="kw">in</span> REQUIRED_PACKAGES.items()
+               <span class="kw">if not</span> <span class="fn">_can_import</span>(module_name)]
+    <span class="kw">if</span> missing:
+        <span class="fn">print</span>(<span class="str">"❌ חסרות ספריות נדרשות:"</span>)
+        <span class="kw">for</span> pkg <span class="kw">in</span> missing: <span class="fn">print</span>(f<span class="str">"   pip install {pkg}"</span>)
+        sys.<span class="fn">exit</span>(<span class="num">1</span>)
 
-<span class="cm"># אם ה-API key הוא placeholder — מסביר ויוצא</span>
-<span class="kw">if not</span> Settings.<span class="fn">get</span>(<span class="str">"api_key"</span>) <span class="kw">or</span> <span class="str">"YOUR_"</span> <span class="kw">in</span> Settings[<span class="str">"api_key"</span>]:
-    <span class="fn">print</span>(<span class="str">"❌ חסר API key ב-settings.json"</span>)
+_check_dependencies()
+
+<span class="cm"># 2. טוען settings.json — אם לא תקין, ConfigError נתפס כאן במקום קריסה</span>
+<span class="kw">try</span>:
+    <span class="kw">from</span> config <span class="kw">import</span> Settings, is_api_key_configured
+<span class="kw">except</span> Exception <span class="kw">as</span> e:
+    <span class="fn">print</span>(f<span class="str">"❌  שגיאה בקובץ settings.json: {e}"</span>)
+    sys.<span class="fn">exit</span>(<span class="num">1</span>)
+
+<span class="cm"># 3. בודק שיש API key אמיתי (לא placeholder)</span>
+<span class="kw">if not</span> <span class="fn">is_api_key_configured</span>(Settings):
+    <span class="fn">print</span>(<span class="str">"❌  חסר API key ב-settings.json"</span>)
     sys.<span class="fn">exit</span>(<span class="num">1</span>)</pre>
 </div>
 
 <h3>מנגנון ה-Debounce</h3>
-<p>הבעיה: תלמידה מקלידה <code>@@ASK: למ</code> — עוד לא סיימה. אם נשלח לAI על כל הקשה נבזבז טוקנים ונקבל תשובות שגויות. הפתרון: מחכים שהתגית תהיה יציבה 1.5 שניות.</p>
+<p>הבעיה: תלמידה מקלידה <code>@@ASK: למ</code> — עוד לא סיימה. אם נשלח ל-AI על כל הקשה נבזבז טוקנים ונקבל תשובות שגויות. הפתרון: מחכים שהתגית תהיה יציבה 1.5 שניות (ללא שינוי מהגרסה הקודמת).</p>
 
 <div class="code-block">
-  <div class="code-file">main.py — לולאת ה-debounce המלאה</div>
-<pre>DEBOUNCE_WITH_CONTENT = <span class="num">1.5</span>   <span class="cm"># @@ASK: שאלה@@ — מחכים שתסיים</span>
-DEBOUNCE_BARE         = <span class="num">0.5</span>   <span class="cm"># @@SCREENSHOT@@ — אין מה להקליד</span>
-
-_pending_key   = None   <span class="cm"># "TAG:content" שמחכה</span>
-_pending_since = None   <span class="cm"># מתי הופיע לראשונה</span>
-_pending_data  = None   <span class="cm"># הנתונים לשלוח ל-handler</span>
-
-<span class="kw">while True</span>:
-    text = <span class="fn">read_focused_text</span>()   <span class="cm"># קרא טקסט מהחלון הפעיל</span>
-
+  <div class="code-file">main.py — לולאת ה-debounce (מקוצר)</div>
+<pre><span class="kw">while True</span>:
+    text = <span class="fn">read_focused_text</span>()
     <span class="kw">if</span> text <span class="kw">and</span> <span class="str">"@@"</span> <span class="kw">in</span> text:
         result = <span class="fn">peek_tag</span>(text)
         <span class="kw">if</span> result:
             tag_type, content = result
             key = f<span class="str">"{tag_type}:{content}"</span>
-            REPEATABLE = {<span class="str">"SCREENSHOT"</span>, <span class="str">"COPYALL"</span>, <span class="str">"COPYABOVE"</span>}
 
-            <span class="kw">if not</span> <span class="fn">is_new</span>(tag_type, content) <span class="kw">and</span> tag_type <span class="kw">not in</span> REPEATABLE:
-                <span class="kw">pass</span>   <span class="cm"># כבר עובד וה-hash תואם — דלג</span>
-
-            <span class="kw">elif</span> key != _pending_key:
-                <span class="cm"># תגית חדשה/שונה — אפס טיימר</span>
-                _pending_key   = key
-                _pending_since = time.<span class="fn">time</span>()
-                _pending_data  = (tag_type, content, text)
-
+            <span class="kw">if not</span> <span class="fn">is_new</span>(tag_type, content) <span class="kw">and</span> tag_type <span class="kw">not in</span> REPEATABLE_TAGS:
+                <span class="kw">pass</span>   <span class="cm"># כבר עובד — דלג</span>
+            <span class="kw">elif</span> key != pending_key:
+                pending_key, pending_since, pending_data = key, time.<span class="fn">time</span>(), (tag_type, content, text)
             <span class="kw">else</span>:
-                <span class="cm"># אותה תגית — האם יציבה מספיק?</span>
                 debounce = DEBOUNCE_BARE <span class="kw">if not</span> content <span class="kw">else</span> DEBOUNCE_WITH_CONTENT
-                <span class="kw">if</span> time.<span class="fn">time</span>() - _pending_since &gt;= debounce:
+                <span class="kw">if</span> time.<span class="fn">time</span>() - pending_since &gt;= debounce:
                     <span class="fn">mark_processed</span>(tag_type, content)
-                    _pending_key = None
-                    threading.<span class="cls">Thread</span>(
-                        target=<span class="fn">_handle</span>, args=_pending_data, daemon=True
-                    ).<span class="fn">start</span>()   <span class="cm"># Thread: לא חוסם את הלולאה</span>
+                    threading.<span class="cls">Thread</span>(target=_safe_dispatch, args=pending_data, daemon=True).<span class="fn">start</span>()
 
-    <span class="cm"># אם הטקסט ריק (שינוי חלון) — לא מאפסים! ייתכן שחזרה מיד</span>
-    time.<span class="fn">sleep</span>(<span class="num">0.3</span>)   <span class="cm"># בדיקה כל 0.3 שניות</span></pre>
+    time.<span class="fn">sleep</span>(MAIN_LOOP_POLL_INTERVAL)   <span class="cm"># 0.3 שניות</span></pre>
 </div>
 
-<h3>_handle() — מטפל בכל תגית</h3>
+<h3>_safe_dispatch() — עוטף את tag_handlers.dispatch()</h3>
 <div class="code-block">
-  <div class="code-file">main.py — _handle() מחלק לפי סוג</div>
-<pre><span class="kw">def</span> <span class="fn">_handle</span>(tag_type: str, content: str, full_text: str):
+  <div class="code-file">main.py — הגנה מפני קריסת thread</div>
+<pre><span class="kw">def</span> <span class="fn">_safe_dispatch</span>(tag_type: str, content: str, full_text: str):
+    <span class="cm">"""אם handler קורס — לא נעלם בשקט, אלא מודפס ומוצג בחלון ERROR"""</span>
+    <span class="kw">try</span>:
+        <span class="fn">dispatch</span>(tag_type, content, full_text)   <span class="cm"># מ-tag_handlers.py</span>
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="fn">print</span>(f<span class="str">"[Agent] Unhandled error: {e}"</span>)
+        ui_window.<span class="fn">show</span>(<span class="str">"ERROR"</span>, f<span class="str">"שגיאה לא צפויה:\n{e}"</span>)</pre>
+</div>
 
-    <span class="cm"># SCREENSHOT ── צלם מסך ושמור PNG ─────────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"SCREENSHOT"</span>:
-        img = pyautogui.<span class="fn">screenshot</span>()     <span class="cm"># OS-level, לא נחסם ע"י SEB</span>
-        filename = f<span class="str">"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"</span>
-        img.<span class="fn">save</span>(str(Path(__file__).parent / filename))
-        popup_window.<span class="fn">show</span>(<span class="str">"SCREENSHOT"</span>, f<span class="str">"✅ נשמר: {filename}"</span>)
-        <span class="kw">return</span>
-
-    <span class="cm"># ASKALL ── שאלה על הקוד שמעל ─────────────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"ASKALL"</span>:
-        tag_pos = full_text.<span class="fn">upper</span>().<span class="fn">find</span>(<span class="str">"@@ASKALL"</span>)
-        code = full_text[:tag_pos].<span class="fn">strip</span>()   <span class="cm"># כל הקוד שמעל התגית</span>
-        <span class="kw">if</span> len(code) &gt; <span class="num">2000</span>: code = code[-<span class="num">2000</span>:]   <span class="cm"># חיסכון בטוקנים</span>
-        response = <span class="fn">ask_ai</span>(<span class="str">"ASKALL"</span>, f<span class="str">"Code:\n{code}\n\nQuestion: {content}"</span>)
-        popup_window.<span class="fn">show</span>(<span class="str">"ASK"</span>, response)
-        <span class="kw">return</span>
-
-    <span class="cm"># SOLVEALL ── פיתרון מלא לפי כל השדה ──────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"SOLVEALL"</span>:
-        clean = re.<span class="fn">sub</span>(<span class="str">r'@@SOLVEALL@@'</span>, <span class="str">''</span>, full_text).<span class="fn">strip</span>()
-        <span class="kw">if</span> len(clean) &gt; <span class="num">3000</span>: clean = clean[:<span class="num">3000</span>]
-        response = <span class="fn">ask_ai</span>(<span class="str">"SOLVEALL"</span>, clean)
-        popup_window.<span class="fn">show</span>(<span class="str">"SOLVE"</span>, response)
-        <span class="kw">return</span>
-
-    <span class="cm"># COPYALL ── העתק כל השדה ל-Clipboard ──────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"COPYALL"</span>:
-        clean = re.<span class="fn">sub</span>(<span class="str">r'@@COPYALL@@'</span>, <span class="str">''</span>, full_text).<span class="fn">strip</span>()
-        pyperclip.<span class="fn">copy</span>(clean)    <span class="cm"># Python קובע מה ב-Clipboard, לא הדפדפן</span>
-        popup_window.<span class="fn">show</span>(<span class="str">"COPY"</span>, <span class="str">"✅ הועתק"</span>)
-        <span class="kw">return</span>
-
-    <span class="cm"># COPYABOVE ── העתק מה שמעל התגית ─────────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"COPYABOVE"</span>:
-        tag_pos = full_text.<span class="fn">upper</span>().<span class="fn">find</span>(<span class="str">"@@COPYABOVE@@"</span>)
-        above = full_text[:tag_pos].<span class="fn">strip</span>()
-        pyperclip.<span class="fn">copy</span>(above)
-        <span class="kw">return</span>
-
-    <span class="cm"># COPY ── העתק טקסט ספציפי ────────────────────────</span>
-    <span class="kw">if</span> tag_type == <span class="str">"COPY"</span>:
-        pyperclip.<span class="fn">copy</span>(content)
-        <span class="kw">return</span>
-
-    <span class="cm"># FIX ── העבר קוד שמעל כ-context ─────────────────</span>
-    context = <span class="str">""</span>
-    <span class="kw">if</span> tag_type == <span class="str">"FIX"</span>:
-        tag_pos = full_text.<span class="fn">upper</span>().<span class="fn">find</span>(<span class="str">"@@FIX"</span>)
-        context = full_text[:tag_pos].<span class="fn">rstrip</span>()
-        <span class="kw">if</span> len(context) &gt; <span class="num">1500</span>: context = context[-<span class="num">1500</span>:]
-
-    <span class="cm"># ASK / SOLVE / FIX → AI ─────────────────────────</span>
-    response = <span class="fn">ask_ai</span>(tag_type, content, context)
-
-    mode = Settings.<span class="fn">get</span>(<span class="str">"response_mode"</span>, <span class="str">"auto"</span>)
-    <span class="kw">if</span> mode == <span class="str">"type"</span>:
-        typer.<span class="fn">append_below_tag</span>(response)   <span class="cm"># כתיבה ישירה לעורך</span>
-    <span class="kw">else</span>:
-        popup_window.<span class="fn">show</span>(tag_type, response)   <span class="cm"># חלון קופץ</span></pre>
+<div class="note">
+  <strong>מה השתנה הכי הרבה?</strong> ב-main.py הישן, פונקציית <code>_handle()</code> אחת הכילה if/elif ל-9 סוגי תגיות — כ-200 שורות. עכשיו <code>main.py</code> רק מריץ את הלולאה וקורא ל-<code>dispatch()</code> מ-<code>tag_handlers.py</code> (סעיף 10), שמחזיק handler נפרד לכל תגית. הלוגיקה עצמה — מה כל תגית עושה — לא השתנתה כלל.
 </div>
 
 <!-- ══ 9 ══ -->
-<h2 id="s9"><span class="num">9</span> claude_client.py — Gemini AI</h2>
+<h2 id="s9"><span class="num">9</span> ai_provider.py — שכבת ה-AI (Gemini / Groq / Mistral)</h2>
 
-<p>מחבר ל-Google Gemini 2.0 Flash Lite — חינמי. כל בקשה עצמאית (ללא היסטוריית שיחה) לחיסכון בטוקנים.</p>
+<p>תומך בשלושה ספקי AI, נבחר אוטומטית לפי צורת ה-API key. כל בקשה עצמאית (ללא היסטוריית שיחה) לחיסכון בטוקנים.</p>
 
 <div class="code-block">
-  <div class="code-file">claude_client.py — system prompts ו-max_tokens</div>
-<pre>_SYSTEM = {
-    <span class="str">"ASK"</span>:  <span class="str">"You are a programming tutor. Answer in Hebrew. 2-4 sentences. No full code."</span>,
-    <span class="str">"SOLVE"</span>: <span class="str">"Output ONLY the code. No prose, no markdown fences."</span>,
-    <span class="str">"FIX"</span>:   <span class="str">"Output ONLY the corrected code. No prose."</span>,
-    <span class="str">"ASKALL"</span>: <span class="str">"Answer in Hebrew about the code provided. 3-5 sentences."</span>,
-    <span class="str">"SOLVEALL"</span>: <span class="str">"Output ONLY the complete solution. No prose."</span>,
-}
+  <div class="code-file">ai_provider.py — בחירת ספק</div>
+<pre><span class="kw">def</span> <span class="fn">detect_provider</span>() -&gt; str:
+    explicit = Settings.<span class="fn">get</span>(<span class="str">"provider"</span>, <span class="str">""</span>).<span class="fn">lower</span>()
+    <span class="kw">if</span> explicit <span class="kw">in</span> (<span class="str">"groq"</span>, <span class="str">"gemini"</span>, <span class="str">"mistral"</span>):
+        <span class="kw">return</span> explicit
+    key = Settings.<span class="fn">get</span>(<span class="str">"api_key"</span>, <span class="str">""</span>)
+    <span class="kw">if</span> key.<span class="fn">startswith</span>(<span class="str">"gsk_"</span>): <span class="kw">return</span> <span class="str">"groq"</span>
+    <span class="kw">if</span> key.<span class="fn">startswith</span>((<span class="str">"AIzaSy"</span>, <span class="str">"AQ."</span>)): <span class="kw">return</span> <span class="str">"gemini"</span>
+    <span class="kw">return</span> <span class="str">"mistral"</span></pre>
+</div>
 
-_MAX_TOKENS = {
-    <span class="str">"ASK"</span>: <span class="num">250</span>,      <span class="cm">← הסבר קצר</span>
-    <span class="str">"SOLVE"</span>: <span class="num">600</span>,    <span class="cm">← קוד בינוני</span>
-    <span class="str">"FIX"</span>: <span class="num">600</span>,      <span class="cm">← קוד מתוקן</span>
-    <span class="str">"ASKALL"</span>: <span class="num">300</span>,   <span class="cm">← תשובה מפורטת</span>
-    <span class="str">"SOLVEALL"</span>: <span class="num">800</span>, <span class="cm">← קוד ארוך</span>
-}</pre>
+<p>שלושת הספקים יורשים מ-<code>AIProvider</code>, שמחזיקה את לולאת ה-retry <strong>פעם אחת בלבד</strong> (ולא משוכפלת בכל ספק כמו בגרסה הראשונה של הרפקטורינג):</p>
+
+<div class="code-block">
+  <div class="code-file">ai_provider.py — retry אחיד לכל הספקים</div>
+<pre><span class="kw">class</span> <span class="cls">RateLimitError</span>(Exception):
+    <span class="cm">"""ספק זורק את זה כדי לאותת ל-generate() לנסות שוב"""</span>
+    <span class="kw">pass</span>
+
+<span class="kw">class</span> <span class="cls">AIProvider</span>(ABC):
+    <span class="kw">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">_request</span>(self, tag_type: str, user_msg: str):
+        <span class="cm">"""ניסיון אחד. זורק RateLimitError כדי להפעיל retry."""</span>
+
+    <span class="kw">def</span> <span class="fn">generate</span>(self, tag_type: str, user_msg: str) -&gt; str:
+        <span class="kw">for</span> attempt <span class="kw">in</span> range(<span class="num">1</span>, RETRY_ATTEMPTS + <span class="num">1</span>):
+            <span class="kw">try</span>:
+                <span class="kw">return</span> self.<span class="fn">_request</span>(tag_type, user_msg)
+            <span class="kw">except</span> <span class="cls">RateLimitError</span>:
+                <span class="kw">if</span> attempt &lt; RETRY_ATTEMPTS:
+                    <span class="fn">print</span>(f<span class="str">"[AI] Rate limit — ממתין {RETRY_WAIT_SECONDS}s... ({attempt}/{RETRY_ATTEMPTS})"</span>)
+                    time.<span class="fn">sleep</span>(RETRY_WAIT_SECONDS)
+                <span class="kw">else</span>:
+                    <span class="kw">raise</span></pre>
+</div>
+
+<p>כל ספק מממש רק את <code>_request()</code> — הקריאה הספציפית ל-API שלו — ומתרגם 429/rate-limit ל-<code>RateLimitError</code> כדי שה-retry המשותף יתפוס אותו:</p>
+
+<div class="code-block">
+  <div class="code-file">ai_provider.py — דוגמה: MistralProvider (הכי קצר)</div>
+<pre><span class="kw">class</span> <span class="cls">MistralProvider</span>(AIProvider):
+    <span class="kw">def</span> <span class="fn">_request</span>(self, tag_type: str, user_msg: str) -&gt; str:
+        <span class="kw">import</span> requests
+        system, max_tokens = <span class="fn">_system_and_limit</span>(tag_type)
+        resp = requests.<span class="fn">post</span>(
+            <span class="str">"https://api.mistral.ai/v1/chat/completions"</span>,
+            headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {Settings['api_key']}"</span>},
+            json={<span class="str">"model"</span>: Settings.<span class="fn">get</span>(<span class="str">"model"</span>, <span class="str">"mistral-small-latest"</span>),
+                  <span class="str">"messages"</span>: [{<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: system},
+                               {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_msg}],
+                  <span class="str">"max_tokens"</span>: max_tokens, <span class="str">"temperature"</span>: <span class="num">0.3</span>},
+            timeout=<span class="num">30</span>,
+        )
+        <span class="kw">if</span> resp.status_code == <span class="num">429</span>:
+            <span class="kw">raise</span> <span class="cls">RateLimitError</span>(f<span class="str">"429: {resp.text}"</span>)
+        resp.<span class="fn">raise_for_status</span>()
+        <span class="kw">return</span> resp.<span class="fn">json</span>()[<span class="str">"choices"</span>][<span class="num">0</span>][<span class="str">"message"</span>][<span class="str">"content"</span>].<span class="fn">strip</span>()</pre>
 </div>
 
 <div class="code-block">
-  <div class="code-file">claude_client.py — ask_ai() עם retry</div>
-<pre><span class="kw">def</span> <span class="fn">ask_ai</span>(tag_type: str, content: str, context: str = <span class="str">""</span>) -&gt; str:
-    system  = _SYSTEM.<span class="fn">get</span>(tag_type, _SYSTEM[<span class="str">"ASK"</span>])
-    max_tok = _MAX_TOKENS.<span class="fn">get</span>(tag_type, <span class="num">300</span>)
+  <div class="code-file">ai_provider.py — factory (thread-safe)</div>
+<pre>_provider_instances = {}
+_provider_lock = threading.<span class="cls">Lock</span>()   <span class="cm"># כמה תגיות יכולות להישלח מ-threads שונים בו-זמנית</span>
 
-    <span class="cm"># FIX: שולחים קוד + הוראה ביחד</span>
+<span class="kw">def</span> <span class="fn">get_provider</span>() -&gt; AIProvider:
+    provider_name = <span class="fn">detect_provider</span>()
+    <span class="kw">with</span> _provider_lock:
+        <span class="kw">if</span> provider_name <span class="kw">not in</span> _provider_instances:
+            _provider_instances[provider_name] = _PROVIDER_CLASSES[provider_name]()
+        <span class="kw">return</span> _provider_instances[provider_name]
+
+<span class="kw">def</span> <span class="fn">ask_ai</span>(tag_type: str, content: str, context: str = <span class="str">""</span>) -&gt; str:
     <span class="kw">if</span> tag_type == <span class="str">"FIX"</span> <span class="kw">and</span> context:
         user_msg = f<span class="str">"Code:\n{context}\n\nFix instruction: {content}"</span>
     <span class="kw">else</span>:
         user_msg = content
+    <span class="kw">if not</span> user_msg.<span class="fn">strip</span>(): <span class="kw">raise</span> ValueError(<span class="str">"Request cannot be empty"</span>)
+    <span class="kw">return</span> <span class="fn">get_provider</span>().<span class="fn">generate</span>(tag_type, user_msg)</pre>
+</div>
 
-    <span class="kw">for</span> attempt <span class="kw">in</span> range(<span class="num">3</span>):   <span class="cm"># עד 3 ניסיונות</span>
-        <span class="kw">try</span>:
-            response = <span class="fn">_get_client</span>().models.<span class="fn">generate_content</span>(
-                model=Settings.<span class="fn">get</span>(<span class="str">"model"</span>, <span class="str">"gemini-2.0-flash-lite"</span>),
-                contents=user_msg,
-                config=types.<span class="cls">GenerateContentConfig</span>(
-                    system_instruction=system,
-                    max_output_tokens=max_tok,
-                    temperature=<span class="num">0.3</span>,   <span class="cm">← פחות "יצירתיות", יותר עקבי</span>
-                ),
-            )
-            <span class="kw">return</span> response.text.<span class="fn">strip</span>()
-
-        <span class="kw">except</span> Exception <span class="kw">as</span> e:
-            <span class="kw">if</span> <span class="str">"429"</span> <span class="kw">in</span> <span class="fn">str</span>(e) <span class="kw">and</span> attempt &lt; <span class="num">2</span>:
-                time.<span class="fn">sleep</span>(<span class="num">15</span>)   <span class="cm">← Rate limit: מחכה 15 שניות ומנסה שוב</span>
-            <span class="kw">else</span>:
-                <span class="kw">raise</span></pre>
+<div class="note">
+  <strong>למה השם השתנה מ-claude_client.py?</strong> השם המקורי היה מטעה — הקובץ מעולם לא דיבר עם Claude, רק עם Gemini/Groq/Mistral. <code>ai_provider.py</code> מתאר בדיוק מה שיש בפנים.<br><br>
+  <strong>הערה על חיתוך הקשר (truncation):</strong> ה-context של תגית <code>@@FIX@@</code> נחתך פעם אחת בלבד — ב-<code>tag_handlers.py</code>, לפני שהוא מגיע לכאן. בגרסה קודמת הוא נחתך פעמיים (גם כאן), מה שהיה קוד מת.
 </div>
 
 <!-- ══ 10 ══ -->
-<h2 id="s10"><span class="num">10</span> popup_window.py — חלון התשובה</h2>
+<h2 id="s10"><span class="num">10</span> tag_handlers.py — handler לכל תגית</h2>
+
+<p>כל תגית מקבלת פונקציה משלה במקום if/elif ענק. הוספת תגית חדשה = כתיבת פונקציה + רישום ב-registry, בלי לגעת בשום קובץ אחר.</p>
 
 <div class="code-block">
-  <div class="code-file">popup_window.py — בניית החלון</div>
+  <div class="code-file">tag_handlers.py — דוגמה: handle_fix</div>
+<pre><span class="kw">def</span> <span class="fn">handle_fix</span>(content: str, full_text: str):
+    context = <span class="fn">_code_above_tag</span>(full_text, <span class="str">"@@FIX"</span>)
+    <span class="kw">if</span> context:
+        context = <span class="fn">_truncate</span>(context, FIX_CONTEXT_LIMIT)   <span class="cm"># החיתוך היחיד למקרה הזה</span>
+
+    <span class="kw">if not</span> content <span class="kw">and not</span> context:
+        ui_window.<span class="fn">show</span>(<span class="str">"ERROR"</span>, <span class="str">"⚠️ כתבי הוראה בתוך התגית..."</span>)
+        <span class="kw">return</span>
+
+    <span class="fn">_call_ai_and_deliver</span>(<span class="str">"FIX"</span>, content, context)</pre>
+</div>
+
+<div class="code-block">
+  <div class="code-file">tag_handlers.py — ה-registry</div>
+<pre>HANDLERS = {
+    <span class="str">"SCREENSHOT"</span>: handle_screenshot,
+    <span class="str">"ASKALL"</span>:     handle_askall,
+    <span class="str">"SOLVEALL"</span>:   handle_solveall,
+    <span class="str">"COPYALL"</span>:    handle_copyall,
+    <span class="str">"COPYABOVE"</span>:  handle_copyabove,
+    <span class="str">"COPY"</span>:       handle_copy,
+    <span class="str">"FIX"</span>:        handle_fix,
+    <span class="str">"ASK"</span>:        handle_ask,
+    <span class="str">"SOLVE"</span>:      handle_solve,
+}
+
+<span class="kw">def</span> <span class="fn">dispatch</span>(tag_type: str, content: str, full_text: str):
+    handler = HANDLERS.<span class="fn">get</span>(tag_type)
+    <span class="kw">if</span> handler <span class="kw">is None</span>:
+        <span class="fn">print</span>(f<span class="str">"[Agent] Unknown tag type: {tag_type}"</span>)
+        <span class="kw">return</span>
+    <span class="fn">handler</span>(content, full_text)</pre>
+</div>
+
+<div class="note">
+  <strong>למה זה בטוח?</strong> <code>detector.KNOWN_TAGS</code> ו-<code>HANDLERS</code> מוחזקים באופן ידני משני קבצים שונים, אבל נבדק שהם תואמים 9/9 — כל תגית שהתגלה יש לה handler, ולהפך.
+</div>
+
+<!-- ══ 11 ══ -->
+<h2 id="s11"><span class="num">11</span> ui_window.py — חלון התשובה</h2>
+
+<div class="code-block">
+  <div class="code-file">ui_window.py — בניית החלון</div>
 <pre>TAG_COLORS = {
     <span class="str">"ASK"</span>: <span class="str">"#89dceb"</span>,   <span class="cm">← כחול בהיר</span>
     <span class="str">"SOLVE"</span>: <span class="str">"#a6e3a1"</span>, <span class="cm">← ירוק</span>
@@ -548,95 +600,103 @@ _MAX_TOKENS = {
 
 <span class="kw">def</span> <span class="fn">_build_window</span>(tag_type, content):
     root = tk.<span class="cls">Tk</span>()
+    root.<span class="fn">title</span>(f<span class="str">"SEB Bot · {tag_type}"</span>)
     root.attributes(<span class="str">"-topmost"</span>, True)   <span class="cm">← תמיד מעל כל חלון (כולל SEB)</span>
-    root.<span class="fn">geometry</span>(<span class="str">"480x320+40+40"</span>)     <span class="cm">← 480×320 פיקסל, מיקום שמאל-עליון</span>
+    root.<span class="fn">geometry</span>(POPUP_GEOMETRY)         <span class="cm">← מ-constants.py: "480x320+40+40"</span>
 
-    <span class="cm"># כותרת עם צבע לפי סוג התגית</span>
-    accent = TAG_COLORS.<span class="fn">get</span>(tag_type, <span class="str">"#cdd6f4"</span>)
-    tk.<span class="cls">Label</span>(hdr, text=f<span class="str">"  [{tag_type}]"</span>, fg=accent, ...)
-
-    <span class="cm"># תיבת טקסט עם גלילה, read-only</span>
-    txt = scrolledtext.<span class="cls">ScrolledText</span>(root, ...)
-    txt.<span class="fn">insert</span>(<span class="str">"1.0"</span>, content)
-    txt.<span class="fn">config</span>(state=<span class="str">"disabled"</span>)
-
-    <span class="cm"># כפתורים</span>
-    <span class="cm"># "📋 העתק" — תמיד מופיע</span>
-    <span class="cm"># "⌨️ כתוב בעורך" — רק ל-SOLVE ו-FIX</span>
-    <span class="kw">if</span> tag_type <span class="kw">in</span> (<span class="str">"SOLVE"</span>, <span class="str">"FIX"</span>):
+    <span class="cm"># תיבת טקסט עם גלילה, read-only + כפתורי "העתק" ו"כתוב בעורך"</span>
+    <span class="kw">if</span> tag_type <span class="kw">in</span> TYPE_ELIGIBLE_TAGS:   <span class="cm"># ("SOLVE", "FIX")</span>
         <span class="fn">make_type_btn</span>()</pre>
 </div>
 
 <div class="code-block">
-  <div class="code-file">popup_window.py — כפתור "כתוב בעורך" עם ספירה לאחור</div>
-<pre><span class="kw">def</span> <span class="fn">make_type_btn</span>():
-    btn = tk.<span class="cls">Button</span>(text=<span class="str">"⌨️  כתוב בעורך (3...)"</span>)
+  <div class="code-file">ui_window.py — כפתור "כתוב בעורך" משתמש ב-keyboard_input</div>
+<pre><span class="kw">import</span> keyboard_input
+<span class="kw">from</span> clipboard_utils <span class="kw">import</span> copy_to_clipboard
 
-    <span class="kw">def</span> <span class="fn">countdown</span>():
-        <span class="kw">for</span> i <span class="kw">in</span> (<span class="num">2</span>, <span class="num">1</span>):
-            time.<span class="fn">sleep</span>(<span class="num">1</span>)
-            btn.<span class="fn">config</span>(text=f<span class="str">"⌨️  כתוב בעורך ({i}...)"</span>)   <span class="cm">← מעדכן כותרת</span>
+<span class="kw">def</span> <span class="fn">countdown</span>():
+    <span class="kw">for</span> i <span class="kw">in</span> range(TYPE_BUTTON_COUNTDOWN_SECONDS - <span class="num">1</span>, <span class="num">0</span>, -<span class="num">1</span>):
         time.<span class="fn">sleep</span>(<span class="num">1</span>)
-        root.<span class="fn">destroy</span>()     <span class="cm">← סוגר חלון → הפוקוס חוזר לעורך</span>
-        time.<span class="fn">sleep</span>(<span class="num">0.4</span>)   <span class="cm">← 400ms — מחכה שהעורך יקבל פוקוס</span>
-        typer.<span class="fn">type_text</span>(content)   <span class="cm">← מקליד!</span>
-
-    btn.<span class="fn">config</span>(command=<span class="kw">lambda</span>: threading.<span class="cls">Thread</span>(target=<span class="fn">countdown</span>).<span class="fn">start</span>())</pre>
+        btn.<span class="fn">config</span>(text=f<span class="str">"⌨️  כתוב בעורך ({i}...)"</span>)
+    time.<span class="fn">sleep</span>(<span class="num">1</span>)
+    root.<span class="fn">destroy</span>()                       <span class="cm">← סוגר חלון → הפוקוס חוזר לעורך</span>
+    time.<span class="fn">sleep</span>(FOCUS_REGAIN_DELAY)         <span class="cm">← 0.4s — מחכה שהעורך יקבל פוקוס</span>
+    keyboard_input.<span class="fn">type_text</span>(content)    <span class="cm">← מקליד!</span></pre>
 </div>
 
-<div class="code-block">
-  <div class="code-file">popup_window.py — show() מחליף חלון קיים</div>
-<pre>_lock = threading.<span class="cls">Lock</span>()
-_active_root = None
-
-<span class="kw">def</span> <span class="fn">show</span>(tag_type, content):
-    <span class="kw">def</span> <span class="fn">_run</span>():
-        <span class="kw">global</span> _active_root
-        <span class="kw">with</span> _lock:
-            <span class="kw">if</span> _active_root:
-                _active_root.<span class="fn">destroy</span>()   <span class="cm">← סוגר חלון קודם לפני פתיחת חדש</span>
-            root = <span class="fn">_build_window</span>(tag_type, content)
-            _active_root = root
-        root.<span class="fn">mainloop</span>()   <span class="cm">← רץ עד שסוגרים</span>
-    threading.<span class="cls">Thread</span>(target=<span class="fn">_run</span>, daemon=True).<span class="fn">start</span>()</pre>
+<div class="note">
+  <strong>מה השתנה?</strong> הקובץ נקרא בעבר <code>popup_window.py</code> וייבא <code>import typer</code> — שם שמתנגש עם החבילה הפופולרית <code>typer</code> ב-PyPI (מסגרת CLI). אם מישהי מתקינה את <code>typer</code> האמיתי לפרויקט אחר על אותו מחשב, ה-import הזה עלול לשלוף את החבילה הלא-נכונה. עודכן ל-<code>ui_window.py</code> ול-<code>import keyboard_input</code>, וכפתור ההעתקה עבר להשתמש ב-<code>clipboard_utils.copy_to_clipboard()</code> המשותף (סעיף 13) במקום קוד fallback כפול.
 </div>
 
-<!-- ══ 11 ══ -->
-<h2 id="s11"><span class="num">11</span> typer.py — הקלדה אוטומטית</h2>
+<!-- ══ 12 ══ -->
+<h2 id="s12"><span class="num">12</span> keyboard_input.py — הקלדה אוטומטית</h2>
 
 <p>כשהחלון הקופץ חסום (SEB kiosk מלא) — הסוכן יכול לכתוב ישירות לעורך. זה עוקף את חסימת ה-Clipboard כי מדמה הקשות פיזיות על מקשים.</p>
 
 <div class="code-block">
-  <div class="code-file">typer.py</div>
+  <div class="code-file">keyboard_input.py</div>
 <pre><span class="kw">def</span> <span class="fn">type_text</span>(text: str):
-    delay = Settings.<span class="fn">get</span>(<span class="str">"type_speed"</span>, <span class="num">0.015</span>)   <span class="cm">← שניות בין תו לתו</span>
+    delay = Settings.<span class="fn">get</span>(<span class="str">"type_speed"</span>, <span class="num">0.015</span>)
 
     <span class="cm"># ניסיון 1: keyboard library — תומך Unicode ועברית</span>
     <span class="kw">try</span>:
         <span class="kw">import</span> keyboard
         keyboard.<span class="fn">write</span>(text, delay=delay)
         <span class="kw">return</span>
-    <span class="kw">except</span>: <span class="kw">pass</span>
+    <span class="kw">except</span> ImportError:
+        <span class="kw">pass</span>
 
-    <span class="cm"># Fallback: pyautogui — ASCII בלבד</span>
+    <span class="cm"># Fallback: pyautogui — עלול לאבד יוניקוד</span>
     <span class="kw">try</span>:
         <span class="kw">import</span> pyautogui
         pyautogui.<span class="fn">write</span>(text, interval=delay)
-    <span class="kw">except</span> Exception <span class="kw">as</span> e:
-        <span class="fn">print</span>(f<span class="str">"[typer] שגיאה: {e}"</span>)
+    <span class="kw">except</span> ImportError:
+        <span class="fn">print</span>(<span class="str">"[keyboard_input] אין keyboard ואין pyautogui"</span>)
 
 <span class="kw">def</span> <span class="fn">append_below_tag</span>(response: str):
-    <span class="cm">"""כשresponse_mode='type' — כותב מתחת לתגית"""</span>
-    keyboard.<span class="fn">press_and_release</span>(<span class="str">"end"</span>)    <span class="cm">← הולך לסוף השורה הנוכחית</span>
-    time.<span class="fn">sleep</span>(<span class="num">0.15</span>)
-    keyboard.<span class="fn">press_and_release</span>(<span class="str">"enter"</span>)  <span class="cm">← שורה חדשה</span>
-    keyboard.<span class="fn">press_and_release</span>(<span class="str">"enter"</span>)  <span class="cm">← שורה נוספת (ריווח)</span>
-    time.<span class="fn">sleep</span>(<span class="num">0.1</span>)
-    <span class="fn">type_text</span>(response)                    <span class="cm">← מקליד תו-תו</span></pre>
+    <span class="cm">"""response_mode='type' — כותב מתחת לתגית"""</span>
+    keyboard.<span class="fn">press_and_release</span>(<span class="str">"end"</span>)
+    time.<span class="fn">sleep</span>(KEY_PRESS_DELAY)
+    keyboard.<span class="fn">press_and_release</span>(<span class="str">"enter"</span>)
+    time.<span class="fn">sleep</span>(KEY_PRESS_DELAY_SHORT)
+    keyboard.<span class="fn">press_and_release</span>(<span class="str">"enter"</span>)
+    time.<span class="fn">sleep</span>(KEY_PRESS_DELAY_SHORT)
+    <span class="fn">type_text</span>(response)</pre>
 </div>
 
-<!-- ══ 12 ══ -->
-<h2 id="s12"><span class="num">12</span> טבלת כל התגיות</h2>
+<!-- ══ 13 ══ -->
+<h2 id="s13"><span class="num">13</span> clipboard_utils.py — Clipboard משותף</h2>
+
+<p>קובץ חדש שמרכז את כל לוגיקת ההעתקה. בגרסה הקודמת היו שני מימושים שונים — אחד ב-<code>main.py</code> ואחד ב-<code>popup_window.py</code>, כל אחד עם fallback משלו.</p>
+
+<div class="code-block">
+  <div class="code-file">clipboard_utils.py</div>
+<pre><span class="kw">def</span> <span class="fn">copy_to_clipboard</span>(text: str) -&gt; bool:
+    <span class="cm">"""pyperclip קודם, Tk זמני כ-fallback. מחזיר True/False בהצלחה."""</span>
+    <span class="kw">try</span>:
+        <span class="kw">import</span> pyperclip
+        pyperclip.<span class="fn">copy</span>(text)
+        <span class="kw">return</span> True
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="fn">print</span>(f<span class="str">"[clipboard] pyperclip failed ({e}), trying Tk fallback..."</span>)
+
+    <span class="kw">try</span>:
+        <span class="kw">import</span> tkinter <span class="kw">as</span> tk
+        r = tk.<span class="cls">Tk</span>(); r.<span class="fn">withdraw</span>()
+        r.<span class="fn">clipboard_clear</span>(); r.<span class="fn">clipboard_append</span>(text); r.<span class="fn">update</span>()
+        r.<span class="fn">destroy</span>()
+        <span class="kw">return</span> True
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="fn">print</span>(f<span class="str">"[clipboard] Tk fallback also failed: {e}"</span>)
+        <span class="kw">return</span> False</pre>
+</div>
+
+<div class="note">
+  <strong>למה זה טוב יותר?</strong> עכשיו כל קריאה ל-COPY/COPYALL/COPYABOVE יודעת אם ההעתקה באמת הצליחה ומציגה ERROR אם לא — בעבר תמיד הונח שההעתקה הצליחה.
+</div>
+
+<!-- ══ 14 ══ -->
+<h2 id="s14"><span class="num">14</span> טבלת כל התגיות</h2>
 
 <table>
   <tr><th>תגית</th><th>AI?</th><th>קורא קוד?</th><th>מה מקבלים</th><th>הגבלה</th></tr>
@@ -651,36 +711,38 @@ _active_root = None
   <tr><td>@@SCREENSHOT@@</td><td><span class="badge b-sys">מערכת</span></td><td>לא</td><td>PNG בתיקיית seb_agent</td><td>חוזר בכל פעם</td></tr>
 </table>
 
-<!-- ══ 13 ══ -->
-<h2 id="s13"><span class="num">13</span> דוגמה חיה — מקצה לקצה</h2>
+<!-- ══ 15 ══ -->
+<h2 id="s15"><span class="num">15</span> דוגמה חיה — מקצה לקצה</h2>
 
 <p>תלמידה כותבת <code>@@ASK: למה הלולאה לא עוצרת?@@</code> בעורך Ultracode.</p>
 
 <div class="steps">
-  <div class="step"><div class="step-num">1</div><div class="step-content"><h4>main.py — read_focused_text()</h4><p>הלולאה רצה. time.sleep(0.3) מסתיים. קוראים את הטקסט מהעורך.</p></div></div>
-  <div class="step"><div class="step-num">2</div><div class="step-content"><h4>reader.py — UIAutomation</h4><p>GetFocusedControl → לא מוצא @@. עולה 5 הורים → לא מוצא. _search_tree → מוצא טקסט עם @@ בעורך Monaco.</p></div></div>
+  <div class="step"><div class="step-num">1</div><div class="step-content"><h4>main.py — read_focused_text()</h4><p>הלולאה רצה. time.sleep(MAIN_LOOP_POLL_INTERVAL) מסתיים. קוראים את הטקסט מהעורך.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-content"><h4>reader.py — UIAutomation</h4><p>GetFocusedControl → לא מוצא @@. עולה MAX_PARENT_WALK_UP הורים → לא מוצא. _search_tree → מוצא טקסט עם @@ בעורך Monaco.</p></div></div>
   <div class="step"><div class="step-num">3</div><div class="step-content"><h4>detector.py — peek_tag()</h4><p>Regex מוצא: tag_type="ASK", content="למה הלולאה לא עוצרת?". מחזיר tuple.</p></div></div>
-  <div class="step"><div class="step-num">4</div><div class="step-content"><h4>main.py — debounce מתחיל</h4><p>key = "ASK:למה הלולאה לא עוצרת?" שונה מ-_pending_key (None). מאתחל טיימר: _pending_since = עכשיו.</p></div></div>
-  <div class="step"><div class="step-num">5</div><div class="step-content"><h4>1.5 שניות אחר כך — אותה תגית</h4><p>elapsed >= 1.5. mark_processed() → Thread חדש → _handle("ASK", "למה...", full_text).</p></div></div>
-  <div class="step"><div class="step-num">6</div><div class="step-content"><h4>claude_client.py — שולח ל-Gemini</h4><p>system="מורה, תשובה בעברית, 2-4 משפטים, בלי קוד". max_tokens=250. temperature=0.3.</p></div></div>
-  <div class="step"><div class="step-num">7</div><div class="step-content"><h4>Gemini מחזיר תשובה בעברית</h4><p>"הבעיה היא שה-counter לא מתעדכן בתוך הלולאה. בדקי אם יש break..."</p></div></div>
-  <div class="step"><div class="step-num">8</div><div class="step-content"><h4>popup_window.show("ASK", response)</h4><p>Thread חדש. חלון כחול-בהיר עם הכותרת [ASK]. תמיד מעל SEB (-topmost). כפתור "📋 העתק".</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-content"><h4>main.py — debounce מתחיל</h4><p>key = "ASK:למה הלולאה לא עוצרת?" שונה מ-pending_key (None). מאתחל טיימר: pending_since = עכשיו.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-content"><h4>1.5 שניות אחר כך — אותה תגית</h4><p>elapsed >= DEBOUNCE_WITH_CONTENT. mark_processed() → Thread חדש → _safe_dispatch("ASK", "למה...", full_text).</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-content"><h4>tag_handlers.dispatch() → handle_ask()</h4><p>content לא ריק → _call_ai_and_deliver("ASK", content, "") → ai_provider.ask_ai(...).</p></div></div>
+  <div class="step"><div class="step-num">7</div><div class="step-content"><h4>ai_provider.py — get_provider().generate()</h4><p>detect_provider() בוחר ספק לפי צורת המפתח. system="מורה, תשובה בעברית, 2-4 משפטים, בלי קוד". max_tokens=250.</p></div></div>
+  <div class="step"><div class="step-num">8</div><div class="step-content"><h4>הספק מחזיר תשובה בעברית</h4><p>"הבעיה היא שה-counter לא מתעדכן בתוך הלולאה. בדקי אם יש break..."</p></div></div>
+  <div class="step"><div class="step-num">9</div><div class="step-content"><h4>ui_window.show("ASK", response)</h4><p>Thread חדש. חלון כחול-בהיר עם הכותרת [ASK]. תמיד מעל SEB (-topmost). כפתור "📋 העתק".</p></div></div>
 </div>
 
-<!-- ══ 14 ══ -->
-<h2 id="s14"><span class="num">14</span> אזהרות ובעיות נפוצות</h2>
+<!-- ══ 16 ══ -->
+<h2 id="s16"><span class="num">16</span> אזהרות ובעיות נפוצות</h2>
 
 <div class="alert">⚠️ אל תפתחי TAGS_GUIDE.txt בזמן שהסוכן רץ — הקובץ מלא @@ והסוכן יתבלבל.</div>
 <div class="alert">⚠️ אל תעלי settings.json ל-GitHub — מכיל API key אישי. (.gitignore מגן עליו אוטומטית)</div>
 <div class="tip">✅ SCREENSHOT / COPYALL / COPYABOVE עובדות כל פעם מחדש — כתבי שוב ומחכי שניה.</div>
 <div class="tip">✅ אם SEB חוסם את החלון: שני response_mode ל-"type" ב-settings.json.</div>
-<div class="info">ℹ️ שגיאת 429 (Rate Limit) — הסוכן ממתין 15 שניות ומנסה שוב אוטומטית עד 3 פעמים.</div>
+<div class="info">ℹ️ שגיאת 429 (Rate Limit) — הסוכן ממתין 15 שניות ומנסה שוב אוטומטית עד 3 פעמים, בכל ספק AI.</div>
 
 <table>
   <tr><th>הודעה</th><th>סיבה</th><th>פתרון</th></tr>
-  <tr><td>❌ חסר API key</td><td>settings.json לא מעודכן</td><td>הכנסי מפתח מ-aistudio.google.com/apikey</td></tr>
+  <tr><td>❌ חסרות ספריות נדרשות</td><td>לא הורצה install.bat, או חבילה חסרה</td><td>הריצי scripts\install.bat</td></tr>
+  <tr><td>❌ שגיאה בקובץ settings.json</td><td>ערך לא תקין (response_mode/provider)</td><td>תקני את הערך לפי סעיף 5</td></tr>
+  <tr><td>❌ חסר API key</td><td>settings.json לא מעודכן</td><td>הכניסי מפתח מ-Gemini/Groq/Mistral</td></tr>
   <tr><td>429 Too Many Requests</td><td>עברת מכסה חינמית</td><td>ממתין 15 שניות אוטומטית; אם חוזר — חכי</td></tr>
-  <tr><td>SSL CERTIFICATE error</td><td>חבילה ישנה מותקנת</td><td>הריצי install.bat מחדש</td></tr>
   <tr><td>contents must not be empty</td><td>@@SOLVE:@@ ריק</td><td>כתבי תיאור: @@SOLVE: כתבי פונקציה שמחשבת X@@</td></tr>
   <tr><td>אין תגובה</td><td>חסר @@ סוגר</td><td>לוודאי @@ בסוף ולחכות 2 שניות</td></tr>
   <tr><td>הסוכן מגיב לקובץ טקסט</td><td>Notepad עם @@ פתוח</td><td>סגרי את קובץ ה-.txt</td></tr>
