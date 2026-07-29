@@ -1,6 +1,6 @@
 =====================================
    SEB Bot — סיכום פרויקט
-   עדכון אחרון: יוני 2026
+   עדכון אחרון: יולי 2026
 =====================================
 
 מה הפרויקט:
@@ -82,9 +82,11 @@ docs/PROJECT_SUMMARY.txt — קובץ זה
  הגדרות (settings.json)
 =====================================
 
-api_key        — Gemini API key
-model          — gemini-2.0-flash-lite (ברירת מחדל, חינמי)
-poll_interval  — שניות בין קריאות (0.3)
+api_key        — API key (Gemini / Groq / Mistral)
+provider       — "" (זיהוי אוטומטי לפי צורת המפתח) | "gemini" | "groq" | "mistral"
+model          — תלוי בספק (למשל gemini-2.0-flash-lite)
+poll_interval  — נבדק ב-validation אך לא נצרך בפועל כרגע —
+                 קצב הבדיקה בלולאה קבוע ב-constants.py (0.3 שניות)
 response_mode  — "auto" = חלון קופץ | "type" = כתיבה ישירה לעורך
 type_speed     — מהירות הקלדה אוטומטית (0.015 שניות לתו)
 
